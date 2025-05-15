@@ -7,7 +7,6 @@ import numpy as np
 import networkx as nx
 import plotly.graph_objects as go
 from scipy.stats import fisher_exact
-from sklearn.linear_model import LogisticRegression
 from sklearn.cluster import KMeans
 from xgboost import XGBClassifier
 import shap
