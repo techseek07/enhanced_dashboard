@@ -189,30 +189,66 @@ MOTIVATION_QUOTES = {
 def generate_student_data(num_students=500):
     np.random.seed(42)
     rows = []
+
+    # Validate and ensure minimum student count
+    num_students = max(1, num_students)  # Ensure at least 1 student
+
     for sid in range(num_students):
+        # Safe date generation
         exam_date = datetime.now() + timedelta(days=np.random.randint(7, 60))
-        skill = np.random.beta(2, 1.5)
-        mot = np.random.choice(['High', 'Medium', 'Low'], p=[0.5, 0.3, 0.2])
-        done = np.random.choice(TOPICS, size=np.random.randint(0, len(TOPICS) + 1), replace=False)
+
+        # Skill generation with beta distribution safeguards
+        skill = np.clip(np.random.beta(2, 1.5), 0.01, 0.99)  # Prevent 0 or 1
+
+        # Motivation level with probability validation
+        mot = np.random.choice(['High', 'Medium', 'Low'],
+                               p=[0.5, 0.3, 0.2])
+
+        # Completed topics with size validation
+        done = np.random.choice(
+            TOPICS,
+            size=np.random.randint(0, len(TOPICS) + 1),
+            replace=False
+        ) if TOPICS else []
+
         for topic in TOPICS:
-            for _ in range(np.random.poisson(3) + 1):
+            # Safe Poisson distribution for interaction count
+            interaction_count = np.random.poisson(3) + 1  # Ensures ≥1 interaction
+            interaction_count = max(1, min(interaction_count, 10))  # Cap at 10
+
+            for _ in range(interaction_count):
+                # Subtopic handling with fallbacks
                 subtopics = SUBTOPICS.get(topic, [])
-                if subtopics:
-                    subs = np.random.choice(subtopics, 3, replace=len(subtopics) < 3)
-                else:
-                    subs = [None] * 3
+                subs = (
+                    np.random.choice(subtopics, 3, replace=len(subtopics) < 3)
+                    if subtopics
+                    else [None] * 3
+                )
 
+                # Dirichlet distribution with normalization
                 wts = np.random.dirichlet(np.ones(3))
-                mf = {'High': 1.0, 'Medium': 0.9, 'Low': 0.7}[mot]
-                corr = np.random.binomial(1, skill * mf)
-                tkt = np.random.gamma(2, 1.5) * (2 - mf)
+                wts /= wts.sum()  # Ensure proper normalization
 
-                # usage metrics
-                vids = np.random.poisson(1)
-                qz = np.random.binomial(1, 0.3)
-                prac = np.random.poisson(2)
-                media = np.random.poisson(1)
-                qp = np.random.randint(0, len(FORMULA_QUIZ_BANK.get(topic, {})))
+                # Motivation factor with bounds
+                mf = {'High': 1.0, 'Medium': 0.9, 'Low': 0.7}.get(mot, 0.7)
+
+                # Binomial success with probability clamping
+                success_prob = skill * mf
+                corr = np.random.binomial(1, np.clip(success_prob, 0.01, 0.99))
+
+                # Time taken with gamma distribution safeguards
+                tkt = max(0.1, np.random.gamma(2, 1.5) * (2 - mf))
+
+                # Usage metrics with validation
+                vids = max(0, np.random.poisson(1))
+                qz = max(0, np.random.binomial(1, 0.3))
+                prac = max(0, np.random.poisson(2))
+                media = max(0, np.random.poisson(1))
+
+                # Quiz progress with empty bank handling
+                quiz_bank = FORMULA_QUIZ_BANK.get(topic, {})
+                qp_max = max(1, len(quiz_bank))  # Ensure ≥1 to prevent randint error
+                qp = np.random.randint(0, qp_max)
 
                 rows.append({
                     'StudentID': sid,
@@ -234,8 +270,8 @@ def generate_student_data(num_students=500):
                     'MediaClicks': media,
                     'QuizProgress': qp
                 })
-    return pd.DataFrame(rows)
 
+    return pd.DataFrame(rows)
 
 # ==================================================================
 # 2. Student Segmentation & Peer Insights
