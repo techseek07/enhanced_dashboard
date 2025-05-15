@@ -241,33 +241,50 @@ def generate_student_data(num_students=500):
 # 2. Student Segmentation & Peer Insights
 # ==================================================================
 def segment_students(df):
-    perf = df.groupby('StudentID').agg(acc=('Correct', 'mean'), time=('TimeTaken', 'mean')).reset_index()
+    perf = df.groupby('StudentID').agg(
+        acc=('Correct', 'mean'),
+        time=('TimeTaken', 'mean')
+    ).reset_index()
 
-    # Handle edge case of empty dataframe
     if perf.empty:
         return pd.DataFrame(columns=['StudentID', 'acc', 'time', 'cluster', 'label'])
 
-    # Ensure we have at least 3 students for KMeans
-    if len(perf) < 3:
+    # Robust clustering initialization
+    n_clusters = min(3, max(1, len(perf)))
+    kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init='auto')
+
+    # Handle single-point edge case
+    if len(perf) == 1:
         perf['cluster'] = 0
         perf['label'] = 'Average'
         return perf
 
-    perf['cluster'] = KMeans(n_clusters=min(3, len(perf)), random_state=0).fit_predict(perf[['acc', 'time']])
+    try:
+        perf['cluster'] = kmeans.fit_predict(perf[['acc', 'time']])
+    except Exception as e:
+        perf['cluster'] = 0
 
-    # Determine order based on accuracy
-    cluster_stats = perf.groupby('cluster')['acc'].mean()
-    if len(cluster_stats) == 3:
-        order = cluster_stats.sort_values(ascending=False).index
-        perf['label'] = perf['cluster'].map({order[0]: 'Topper', order[1]: 'Average', order[2]: 'Poor'})
-    else:
-        # Handle case with fewer clusters
-        if len(cluster_stats) == 2:
-            order = cluster_stats.sort_values(ascending=False).index
-            perf['label'] = perf['cluster'].map({order[0]: 'Topper', order[1]: 'Poor'})
-        else:
-            perf['label'] = 'Average'
+    # Validation of cluster statistics
+    cluster_stats = perf.groupby('cluster')['acc'].agg(['mean', 'count'])
+    valid_clusters = cluster_stats[cluster_stats['mean'] > 0]  # Filter zero-acc clusters
 
+    if valid_clusters.empty:
+        perf['label'] = 'Needs Help'
+        return perf
+
+    # Stable sorting with secondary key
+    ranked_clusters = valid_clusters.sort_values(
+        ['mean', 'count'],
+        ascending=[False, False]
+    ).reset_index()
+
+    # Dynamic labeling
+    label_map = {}
+    for i, row in ranked_clusters.iterrows():
+        label = ['Topper', 'Average', 'Poor'][i] if i < 3 else 'Unknown'
+        label_map[row['cluster']] = label
+
+    perf['label'] = perf['cluster'].map(label_map).fillna('Unknown')
     return perf
 
 
