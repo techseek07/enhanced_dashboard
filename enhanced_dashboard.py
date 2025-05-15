@@ -426,20 +426,23 @@ def build_knowledge_graph(prereqs, df, topics, OR_thresh=2.0, SHAP_thresh=0.01,
     """
     G = nx.DiGraph()
 
-    # Initialize all node types
+    # Initialize all topic nodes
     for topic in topics:
         G.add_node(topic, type='topic')
-    for app_info in application_relations.values():
+
+    # Initialize application nodes
+    for app_key, app_info in application_relations.items():
+        G.add_node(app_key, type='application')
         G.add_node(app_info['base_topic'], type='base_topic')
-        G.add_node(app_info['app_node'], type='application')
 
     # Add predefined relationships
     for target, requirements in prereqs.items():
         for req in requirements:
             G.add_edge(req, target, relation='prereq', weight=3.0)
 
+    # Add application relationships
     for app_key, app_info in application_relations.items():
-        G.add_edge(app_info['base_topic'], app_info['app_node'],
+        G.add_edge(app_info['base_topic'], app_key,
                    relation='application', weight=2.5)
 
     if df.empty:
