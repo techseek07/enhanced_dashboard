@@ -33,7 +33,8 @@ PREREQUISITES = {
 }
 TOPICS = [
     'Algebra', 'Geometry', 'Calculus', 'Chemistry', 'Biology',
-    'Chemical Bonding', 'Kinematics', 'DNA Replication', 'Gas Laws','Derivatives'
+    'Chemical Bonding', 'Kinematics', 'DNA Replication', 'Gas Laws','Derivatives','product_rule',
+  'Chain_rule',
 ]
 SUBTOPICS = {
     'Algebra': ['Equations', 'Inequalities', 'Polynomials'],
@@ -42,9 +43,11 @@ SUBTOPICS = {
     'Chemistry': ['Elements', 'Reactions', 'Compounds','Chemical Bonding', 'Gas Laws'],
     'Biology': ['Cells', 'Genetics', 'Ecology', 'DNA Replication'],
     'Physics': ['Kinematics'],
-    'Derivatives': ['Rules', 'Chain Rule', 'Applications'],
+    'Derivatives': ['Rules', 'Applications'],
 'DNA Replication': ['DNA Structure'],
-    'Kinematics': ['Motion Equations']
+    'Kinematics': ['Motion Equations'],
+'product_rule': ['basic_derivatives','multiplication'],      # or list of deeper sub‑prereqs if you have them
+   'Chain_rule': ['divison'],
 
 }
 
@@ -885,7 +888,6 @@ def build_knowledge_graph(prereqs, df, topics, OR_thresh=2.0, SHAP_thresh=0.01,
     # Initialize all topic nodes
     for topic in topics:
         G.add_node(topic, type='topic')
-
     # Add application relationships with validation
     for app_key, app_info in application_relations.items():
         base_topic = app_info['base_topic']
