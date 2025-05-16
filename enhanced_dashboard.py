@@ -540,10 +540,14 @@ def progression_summary(df, student1, student2, time_tolerance=0.15, perf_gap=0.
         f"🏆 Better Performer: Student {better_student} ({s1_perf if better_student == student1 else s2_perf:.0%} vs {s2_perf if better_student == student1 else s1_perf:.0%})")
 
     for comp in comparisons[:3]:  # Top 3 differences
-        insights.append(
-            f"📊 {comp['metric']}: {comp['better']} vs {comp['weaker']} "
-            f"({comp['direction']} by {comp['diff']})"
-        )
+        try:
+            insights.append(
+                f"📊 {comp['metric']}: {int(comp['better'])} vs {int(comp['weaker'])} "
+                f"({comp['direction']} by {int(comp['diff'])})"
+            )
+        except Exception as e:
+            st.error(f"Invalid comparison values: {str(e)}")
+            continue
 
     # Add strategic recommendations
     top_diff = comparisons[0]
@@ -1349,22 +1353,48 @@ def main():
                                         st.info("No significant behavioral differences found")
                                 with col2:
                                     st.markdown("##### 🚀 Improvement Plan")
-                                    if len(insights) >= 4:
-                                        top_metric = insights[1].split(':')[0]
-                                        s1_val = int(insights[1].split(' ')[-3])
-                                        s2_val = int(insights[1].split(' ')[-6])
-                                        fig = go.Figure()
-                                        fig.add_trace(go.Bar(
-                                            x=['You', f'Student {best_peer}'],
-                                            y=[s1_val, s2_val],
-                                            text=[s1_val, s2_val],
-                                            textposition='auto'
-                                        ))
-                                        fig.update_layout(title=f"{top_metric} Comparison", height=300)
-                                        st.plotly_chart(fig, use_container_width=True)
-                                        st.markdown(f"<div class='highlight'>{insights[-1]}</div>", unsafe_allow_html=True)
-                                    else:
-                                        st.warning("Insufficient data for detailed comparison")
+                                    if len(insights) >= 1:
+                                        try:
+                                            # Directly display all insights
+                                            for insight in insights:
+                                                if "Recommendation" in insight:
+                                                    st.markdown(f"**Priority Action:**")
+                                                    st.success(f"{insight.replace('🚀 ', '')}")
+                                                else:
+                                                    st.markdown(f"- {insight}")
+
+                                            # Simplified visualization using raw values
+                                            if len(insights) > 1:
+                                                metrics = [insight.split(":")[0].replace("📊 ", "")
+                                                           for insight in insights if "📊" in insight]
+                                                values = [int(float(insight.split("by ")[-1].split()[0]))
+                                                          for insight in insights if "by" in insight]
+
+                                                if metrics and values:
+                                                    fig = go.Figure()
+                                                    fig.add_trace(go.Bar(
+                                                        x=metrics,
+                                                        y=values,
+                                                        text=values,
+                                                        textposition='auto'
+                                                    ))
+                                                    fig.update_layout(
+                                                        title="Key Activity Differences",
+                                                        height=250
+                                                    )
+                                                    st.plotly_chart(fig, use_container_width=True)
+
+                                        except Exception as e:
+                                            st.error(f"Display error: {str(e)}")
+                                            # Fallback to raw insights display
+                                            st.markdown("**Key Findings:**")
+                                            for insight in insights:
+                                                st.write(f"- {insight}")
+                                        else:
+                                            st.markdown("**General improvement tips:**")
+                                            st.write("1. Balance different study activities")
+                                            st.write("2. Review foundational concepts weekly")
+                                            st.write("3. Track your time distribution")
                             else:
                                 st.info("No peers found with >=15% performance gap")
                         else:
@@ -1376,142 +1406,142 @@ def main():
             else:
                 st.warning("Select a student to enable peer comparison")
 
-                # Quiz Section
-                st.markdown('<p class="medium-font">Interactive Quiz Section</p>', unsafe_allow_html=True)
-                try:
-                    comp = df[(df.StudentID == sid) & (df.Completed)].Topic.unique().tolist()
-                    quiz_topics = [t for t in comp if t in FORMULA_QUIZ_BANK]
+            # Quiz Section
+            st.markdown('<p class="medium-font">Interactive Quiz Section</p>', unsafe_allow_html=True)
+            try:
+                comp = df[(df.StudentID == sid) & (df.Completed)].Topic.unique().tolist()
+                quiz_topics = [t for t in comp if t in FORMULA_QUIZ_BANK]
 
-                    if quiz_topics:
-                        c1, c2 = st.columns([1, 2])
-                        with c1:
-                            selected_topic = st.selectbox("Select Quiz Topic", quiz_topics)
-                            if st.button("Start Quiz", type="primary"):
-                                # Initialize quiz session state
-                                st.session_state.show_quiz = True
-                                st.session_state.quiz_topic = selected_topic
-                                st.session_state.quiz_answers = {}
+                if quiz_topics:
+                    c1, c2 = st.columns([1, 2])
+                    with c1:
+                        selected_topic = st.selectbox("Select Quiz Topic", quiz_topics)
+                        if st.button("Start Quiz", type="primary"):
+                            # Initialize quiz session state
+                            st.session_state.show_quiz = True
+                            st.session_state.quiz_topic = selected_topic
+                            st.session_state.quiz_answers = {}
 
-                                # Pre-initialize all question keys
-                                if selected_topic in FORMULA_QUIZ_BANK:
-                                    topic_data = FORMULA_QUIZ_BANK[selected_topic]
-                                    for sub, questions in topic_data.items():
-                                        for q in questions:
-                                            q_key = f"q_{selected_topic}_{q['id']}"
-                                            if q_key not in st.session_state:
-                                                st.session_state[q_key] = ""
-                                else:
-                                    st.error("Invalid quiz topic selected")
-                                    st.session_state.show_quiz = False
+                            # Pre-initialize all question keys
+                            if selected_topic in FORMULA_QUIZ_BANK:
+                                topic_data = FORMULA_QUIZ_BANK[selected_topic]
+                                for sub, questions in topic_data.items():
+                                    for q in questions:
+                                        q_key = f"q_{selected_topic}_{q['id']}"
+                                        if q_key not in st.session_state:
+                                            st.session_state[q_key] = ""
+                            else:
+                                st.error("Invalid quiz topic selected")
+                                st.session_state.show_quiz = False
 
-                        with c2:
-                            if st.session_state.get('show_quiz'):
-                                topic = st.session_state.quiz_topic
+                    with c2:
+                        if st.session_state.get('show_quiz'):
+                            topic = st.session_state.quiz_topic
 
-                                # Validate topic exists in quiz bank
-                                if topic not in FORMULA_QUIZ_BANK:
-                                    st.error("Invalid quiz topic selected")
-                                    return
+                            # Validate topic exists in quiz bank
+                            if topic not in FORMULA_QUIZ_BANK:
+                                st.error("Invalid quiz topic selected")
+                                return
 
-                                # Validate questions exist for topic
-                                if not FORMULA_QUIZ_BANK[topic]:
-                                    st.error("No questions available for this topic")
-                                    return
+                            # Validate questions exist for topic
+                            if not FORMULA_QUIZ_BANK[topic]:
+                                st.error("No questions available for this topic")
+                                return
 
-                                st.markdown(f"### {topic} Quiz")
+                            st.markdown(f"### {topic} Quiz")
 
-                                with st.form(key=f"quiz_form_{topic}"):
-                                    # Initialize form with proper question IDs
-                                    for sub, questions in FORMULA_QUIZ_BANK[topic].items():
-                                        st.subheader(f"Section: {sub}")
-                                        for q in questions:
-                                            q_key = f"q_{topic}_{q['id']}"
-                                            st.markdown(f"**Q{q['id']}:** {q['question']}")
+                            with st.form(key=f"quiz_form_{topic}"):
+                                # Initialize form with proper question IDs
+                                for sub, questions in FORMULA_QUIZ_BANK[topic].items():
+                                    st.subheader(f"Section: {sub}")
+                                    for q in questions:
+                                        q_key = f"q_{topic}_{q['id']}"
+                                        st.markdown(f"**Q{q['id']}:** {q['question']}")
 
-                                            if q['type'] == 'formula':
-                                                st.text_input("Your answer:",
-                                                              key=q_key,
-                                                              value=st.session_state.get(q_key, ""))
-                                            else:
-                                                options = q.get('options', ["Option A", "Option B", "Option C"])
-                                                st.radio("Select:", options,
-                                                         key=q_key,
-                                                         index=0)
-                                            st.markdown("---")
+                                        if q['type'] == 'formula':
+                                            st.text_input("Your answer:",
+                                                          key=q_key,
+                                                          value=st.session_state.get(q_key, ""))
+                                        else:
+                                            options = q.get('options', ["Option A", "Option B", "Option C"])
+                                            st.radio("Select:", options,
+                                                     key=q_key,
+                                                     index=0)
+                                        st.markdown("---")
 
-                                    if st.form_submit_button("Submit Quiz"):
-                                        try:
-                                            # Initialize response structures if not present
-                                            if 'quiz_responses' not in st.session_state:
-                                                st.session_state.quiz_responses = {}
-                                            if 'question_responses' not in st.session_state:
-                                                st.session_state.question_responses = {}
+                                if st.form_submit_button("Submit Quiz"):
+                                    try:
+                                        # Initialize response structures if not present
+                                        if 'quiz_responses' not in st.session_state:
+                                            st.session_state.quiz_responses = {}
+                                        if 'question_responses' not in st.session_state:
+                                            st.session_state.question_responses = {}
 
-                                            # Initialize student-specific structures
-                                            if sid not in st.session_state.quiz_responses:
-                                                st.session_state.quiz_responses[sid] = {}
-                                            if sid not in st.session_state.question_responses:
-                                                st.session_state.question_responses[sid] = {}
+                                        # Initialize student-specific structures
+                                        if sid not in st.session_state.quiz_responses:
+                                            st.session_state.quiz_responses[sid] = {}
+                                        if sid not in st.session_state.question_responses:
+                                            st.session_state.question_responses[sid] = {}
 
-                                            # Validate topic again (defense in depth)
-                                            if topic not in FORMULA_QUIZ_BANK:
-                                                st.error("Invalid quiz topic selected")
-                                                return
+                                        # Validate topic again (defense in depth)
+                                        if topic not in FORMULA_QUIZ_BANK:
+                                            st.error("Invalid quiz topic selected")
+                                            return
 
-                                            # Validate questions exist for topic
-                                            if not FORMULA_QUIZ_BANK[topic]:
-                                                st.error("No questions available for this topic")
-                                                return
+                                        # Validate questions exist for topic
+                                        if not FORMULA_QUIZ_BANK[topic]:
+                                            st.error("No questions available for this topic")
+                                            return
 
-                                            # Process all questions
-                                            for sub, questions in FORMULA_QUIZ_BANK[topic].items():
-                                                for q in questions:
-                                                    q_key = f"q_{topic}_{q['id']}"
+                                        # Process all questions
+                                        for sub, questions in FORMULA_QUIZ_BANK[topic].items():
+                                            for q in questions:
+                                                q_key = f"q_{topic}_{q['id']}"
 
-                                                    # Safely get student answer from session state
-                                                    student_answer = st.session_state.get(q_key, "")
+                                                # Safely get student answer from session state
+                                                student_answer = st.session_state.get(q_key, "")
 
-                                                    # Validate answer
-                                                    is_correct, feedback = validate_answer(q, student_answer)
+                                                # Validate answer
+                                                is_correct, feedback = validate_answer(q, student_answer)
 
-                                                    # Track response
-                                                    track_question_response(sid, q['id'], is_correct)
+                                                # Track response
+                                                track_question_response(sid, q['id'], is_correct)
 
-                                                    # Store detailed response
-                                                    if topic not in st.session_state.quiz_responses[sid]:
-                                                        st.session_state.quiz_responses[sid][topic] = []
+                                                # Store detailed response
+                                                if topic not in st.session_state.quiz_responses[sid]:
+                                                    st.session_state.quiz_responses[sid][topic] = []
 
-                                                    st.session_state.quiz_responses[sid][topic].append({
-                                                        "qid": q['id'],
-                                                        "answer": student_answer,
-                                                        "is_correct": is_correct,
-                                                        "timestamp": datetime.now().isoformat(),
-                                                        "feedback": feedback
-                                                    })
+                                                st.session_state.quiz_responses[sid][topic].append({
+                                                    "qid": q['id'],
+                                                    "answer": student_answer,
+                                                    "is_correct": is_correct,
+                                                    "timestamp": datetime.now().isoformat(),
+                                                    "feedback": feedback
+                                                })
 
-                                            # Update knowledge graph
-                                            update_knowledge_graph_with_quiz(st.session_state.knowledge_graph, sid,
-                                                                             topic)
+                                        # Update knowledge graph
+                                        update_knowledge_graph_with_quiz(st.session_state.knowledge_graph, sid,
+                                                                         topic)
 
-                                            # Clear temporary input states
-                                            for sub, questions in FORMULA_QUIZ_BANK[topic].items():
-                                                for q in questions:
-                                                    q_key = f"q_{topic}_{q['id']}"
-                                                    if q_key in st.session_state:
-                                                        del st.session_state[q_key]
+                                        # Clear temporary input states
+                                        for sub, questions in FORMULA_QUIZ_BANK[topic].items():
+                                            for q in questions:
+                                                q_key = f"q_{topic}_{q['id']}"
+                                                if q_key in st.session_state:
+                                                    del st.session_state[q_key]
 
-                                            st.success("Quiz submitted successfully! Recommendations updated.")
-                                            st.session_state.show_quiz = False
+                                        st.success("Quiz submitted successfully! Recommendations updated.")
+                                        st.session_state.show_quiz = False
 
-                                        except Exception as e:
-                                            st.error(f"Quiz submission error: {str(e)}")
-                                            import traceback
-                                            st.error(traceback.format_exc())
+                                    except Exception as e:
+                                        st.error(f"Quiz submission error: {str(e)}")
+                                        import traceback
+                                        st.error(traceback.format_exc())
 
-                except Exception as e:
-                    st.error(f"Quiz section error: {str(e)}")
-                    import traceback
-                    st.error(traceback.format_exc())
+            except Exception as e:
+                st.error(f"Quiz section error: {str(e)}")
+                import traceback
+                st.error(traceback.format_exc())
         # Performance Analytics
         st.markdown('<p class="medium-font">Performance Analytics</p>', unsafe_allow_html=True)
         try:
