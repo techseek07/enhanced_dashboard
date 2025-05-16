@@ -11,7 +11,6 @@ import shap
 from itertools import combinations
 from collections import Counter
 from datetime import datetime, timedelta
-from statsmodels.stats.contingency_tables import StratifiedTable
 # ==================================================================
 # 0. Configuration & Mock Data
 # ==================================================================
@@ -876,185 +875,192 @@ def progression_summary(df, student1, student2, time_tolerance=0.15, perf_gap=0.
 # 3. Knowledge Graph Construction
 # ==================================================================
 def build_knowledge_graph(prereqs, df, topics, OR_thresh=2.0, SHAP_thresh=0.01,
-                              min_count=20, application_relations=None):
+                          min_count=20, application_relations=None):
     if application_relations is None:
         application_relations = APPLICATION_RELATIONS.copy()
-    """
-    Constructs a knowledge graph combining prerequisite relationships, application connections,
-    and statistically validated topic relationships from student performance data.
-    """
+
     G = nx.DiGraph()
 
-    # Initialize all topic nodes
+    # Phase 1: Core node initialization
+    # ---------------------------------
     for topic in topics:
-        G.add_node(topic, type='topic')
-    # Add application relationships with validation
+        G.add_node(topic, type='topic', validated=True)
+    for app_key in application_relations:
+        G.add_node(app_key, type='application', validated=True)
+
+    # Phase 2: Relationship construction with validation
+    # --------------------------------------------------
+    # Application relationships
     for app_key, app_info in application_relations.items():
         base_topic = app_info['base_topic']
-
-        # Validate base topic exists in core topics
-        if base_topic not in G.nodes:
-            st.warning(f"⚠️ Missing base topic '{base_topic}' for application '{app_key}'. Skipping...")
-            continue
-
-        # Create application node if not exists
-        if app_key not in G.nodes:
-            G.add_node(app_key, type='application')
-
-        # Add relationship with validation
         if G.has_node(base_topic) and G.has_node(app_key):
             G.add_edge(base_topic, app_key,
                        relation='application',
                        weight=2.5,
                        description=app_info.get('description', ''))
         else:
-            st.error(f"❌ Failed to create application relationship between {base_topic} and {app_key}")
+            missing = [n for n in [base_topic, app_key] if not G.has_node(n)]
+            st.error(f"Missing application nodes: {', '.join(missing)}")
 
-        # Add prerequisite relationships
-        for target, requirements in prereqs.items():
-            for req in requirements:
-                if req in G.nodes and target in G.nodes:
-                    G.add_edge(req, target, relation='prereq', weight=3.0)
-                else:
-                    st.warning(f"Missing prerequisite node(s) for {req} -> {target}")
-
-    # Add application relationships
-    for app_key, app_info in application_relations.items():
-        G.add_edge(app_info['base_topic'], app_key,
-                   relation='application', weight=2.5)
-
-    if df.empty:
-        return G
-
-    try:
-        # Student struggle analysis
-        grp = df.groupby(['StudentID', 'Topic']).agg(
-            attempts=('Correct', 'count'),
-            correct=('Correct', 'sum'),
-            time=('TimeTaken', 'mean')
-        ).reset_index()
-        grp['struggle'] = (grp.attempts >= 2) & (grp.correct / grp.attempts < 0.5)
-
-        # Create aligned data structures
-        struggle_matrix = grp.pivot(index='StudentID', columns='Topic',
-                                    values='struggle').fillna(False)
-        student_ids = struggle_matrix.index
-        proficiency = (grp.groupby('StudentID').correct.sum() /
-                       grp.groupby('StudentID').attempts.sum()).reindex(student_ids)
-        avg_time = grp.groupby('StudentID').time.mean().reindex(student_ids)
-
-        # Statistical relationship detection
-        for topic_a, topic_b in combinations(topics, 2):
-            if topic_a not in struggle_matrix.columns or topic_b not in struggle_matrix.columns:
-                continue
-
-            valid_mask = struggle_matrix[topic_a].notna() & struggle_matrix[topic_b].notna()
-            valid_students = struggle_matrix[valid_mask].index
-
-            if len(valid_students) < min_count:
-                continue
-
-            try:
-                X = pd.DataFrame({
-                    'topic_a': struggle_matrix.loc[valid_students, topic_a].astype(int),
-                    'proficiency': proficiency.loc[valid_students],
-                    'time': avg_time.loc[valid_students]
-                }).dropna()
-
-                y = struggle_matrix.loc[valid_students, topic_b].astype(int).loc[X.index]
-
-                if len(X) < 10 or y.nunique() < 2:
-                    continue
-
-                # Adjusted odds ratio calculation
-                or_value = np.nan
-                if len(y) >= 50:  # Regularized logistic regression
-                    lr = LogisticRegression(penalty='l2', C=0.1, max_iter=1000, random_state=42)
-                    lr.fit(X[['topic_a', 'proficiency', 'time']], y)
-                    or_value = np.exp(lr.coef_[0][0])
-                else:  # Stratified analysis
-                    try:
-                        strata = pd.qcut(X.proficiency, q=3, duplicates='drop')
-                        if len(strata.unique()) >= 2:
-                            # Create contingency table
-                            contingency_table = np.array([
-                                [np.sum((X.topic_a == 1) & (y == 1)), np.sum((X.topic_a == 1) & (y == 0))],
-                                [np.sum((X.topic_a == 0) & (y == 1)), np.sum((X.topic_a == 0) & (y == 0))]
-                            ])
-                            table = StratifiedTable.from_data(
-                                var1='topic_a',
-                                var2=y.name if isinstance(y, pd.Series) else 'topic_b',
-                                strata='proficiency',
-                                data=X.assign(topic_b=y)
-                            )
-
-                            or_value = table.oddsratio_pooled
-                    except Exception as e:
-                        st.error(f"Stratified analysis failed: {str(e)}")
-                        or_value = np.nan
-
-                if or_value > OR_thresh and not np.isnan(or_value):
-                    G.add_edge(topic_a, topic_b, relation='odds_ratio',
-                               weight=min(or_value, 5.0))
-
-                # SHAP feature importance - fixed to ensure it runs
-                if len(y) >= 100:  # Only run XGBoost on larger samples
-                    try:
-                        xgb = XGBClassifier(use_label_encoder=False, eval_metric='logloss',
-                                            random_state=42)
-                        xgb.fit(X, y)
-
-                        explainer = shap.TreeExplainer(xgb)
-                        shap_values = explainer.shap_values(X)
-
-                        a_importance = np.abs(shap_values[:, 0]).mean()
-                        if a_importance > SHAP_thresh:
-                            G.add_edge(topic_a, topic_b, relation='shap_importance',
-                                       weight=min(a_importance * 10, 4.0))
-                    except Exception as e:
-                        st.error(f"SHAP analysis failed: {str(e)}")
-
-            except Exception as e:
-                st.error(f"Relationship analysis failed for {topic_a}-{topic_b}: {str(e)}")
-
-    except Exception as e:
-        st.error(f"Graph construction failed: {str(e)}")
-        return G
-
-    # Subtopic integration
-    for topic in topics:
-        topic_data = df[df.Topic == topic]
-        if topic_data.empty:
+    # Prerequisite relationships
+    for target, requirements in prereqs.items():
+        if not G.has_node(target):
+            st.warning(f"Prereq target '{target}' not in core topics")
             continue
 
-        failures = topic_data[topic_data.Correct == 0]
-        subtopic_weights = Counter()
-        for _, row in failures.iterrows():
-            for i in (1, 2, 3):
-                subtopic = row.get(f'Subtopic{i}')
-                weight = row.get(f'Weight{i}')
-                if pd.notna(subtopic) and pd.notna(weight):
-                    subtopic_weights[subtopic] += weight
+        for req in requirements:
+            if G.has_node(req) and G.has_node(target):
+                G.add_edge(req, target, relation='prereq', weight=3.0, validated=True)
+            else:
+                missing = [n for n in [req, target] if not G.has_node(n)]
+                st.warning(f"Missing prereq nodes: {', '.join(missing)}")
+
+    # Phase 3: Data-driven relationships
+    # ----------------------------------
+    if not df.empty:
+        try:
+            # Student struggle analysis
+            grp = df.groupby(['StudentID', 'Topic']).agg(
+                attempts=('Correct', 'count'),
+                correct=('Correct', 'sum'),
+                time=('TimeTaken', 'mean')
+            ).reset_index()
+            grp['struggle'] = (grp.attempts >= 2) & (grp.correct / grp.attempts < 0.5)
+
+            # Create aligned data structures
+            struggle_matrix = grp.pivot(index='StudentID', columns='Topic',
+                                        values='struggle').fillna(False)
+            student_ids = struggle_matrix.index
+            proficiency = (grp.groupby('StudentID').correct.sum() /
+                           grp.groupby('StudentID').attempts.sum()).reindex(student_ids)
+            avg_time = grp.groupby('StudentID').time.mean().reindex(student_ids)
+
+            # Statistical relationship detection
+            for topic_a, topic_b in combinations(topics, 2):
+                if topic_a not in G.nodes or topic_b not in G.nodes:
+                    continue
+
+                # Skip if topics not in struggle matrix
+                if topic_a not in struggle_matrix.columns or topic_b not in struggle_matrix.columns:
+                    continue
+
+                valid_mask = struggle_matrix[topic_a].notna() & struggle_matrix[topic_b].notna()
+                valid_students = struggle_matrix[valid_mask].index
+
+                if len(valid_students) < min_count:
+                    continue
+
+                try:
+                    # Feature engineering
+                    X = pd.DataFrame({
+                        'topic_a': struggle_matrix.loc[valid_students, topic_a].astype(int),
+                        'proficiency': proficiency.loc[valid_students],
+                        'time': avg_time.loc[valid_students]
+                    }).dropna()
+
+                    y = struggle_matrix.loc[valid_students, topic_b].astype(int).loc[X.index]
+
+                    if len(X) < 10 or y.nunique() < 2:
+                        continue
+
+                    # Odds ratio calculation
+                    or_value = np.nan
+                    if len(y) >= 50:  # Regularized logistic regression
+                        lr = LogisticRegression(penalty='l2', C=0.1, max_iter=1000, random_state=42)
+                        lr.fit(X[['topic_a', 'proficiency', 'time']], y)
+                        or_value = np.exp(lr.coef_[0][0])
+                    else:  # Stratified analysis
+                        try:
+                            strata = pd.qcut(X.proficiency, q=3, duplicates='drop')
+                            if len(strata.unique()) >= 2:
+                                contingency_table = np.array([
+                                    [np.sum((X.topic_a == 1) & (y == 1)),
+                                     np.sum((X.topic_a == 1) & (y == 0))],
+                                    [np.sum((X.topic_a == 0) & (y == 1)),
+                                     np.sum((X.topic_a == 0) & (y == 0))]
+                                ])
+                                or_value = (contingency_table[0, 0] * contingency_table[1, 1]) / \
+                                           (contingency_table[0, 1] * contingency_table[1, 0])
+                        except Exception as e:
+                            st.error(f"Stratified odds ratio calculation failed: {str(e)}")
+                            or_value = np.nan
+
+                    # SHAP analysis
+                    a_importance = 0
+                    if len(y) >= 100:
+                        try:
+                            xgb = XGBClassifier(use_label_encoder=False, eval_metric='logloss',
+                                                random_state=42)
+                            xgb.fit(X, y)
+                            explainer = shap.TreeExplainer(xgb)
+                            shap_values = explainer.shap_values(X)
+                            a_importance = np.abs(shap_values[:, 0]).mean()
+                        except Exception as e:
+                            st.error(f"SHAP analysis failed: {str(e)}")
+
+                    # Add edges if valid
+                    if or_value > OR_thresh and not np.isnan(or_value):
+                        if G.has_node(topic_a) and G.has_node(topic_b):
+                            G.add_edge(topic_a, topic_b,
+                                       relation='odds_ratio',
+                                       weight=min(or_value, 5.0),
+                                       validated=False)
+
+                    if a_importance > SHAP_thresh:
+                        if G.has_node(topic_a) and G.has_node(topic_b):
+                            G.add_edge(topic_a, topic_b,
+                                       relation='shap_importance',
+                                       weight=min(a_importance * 10, 4.0),
+                                       validated=False)
+
+                except Exception as e:
+                    st.error(f"Analysis failed for {topic_a}-{topic_b}: {str(e)}")
+
+        except Exception as e:
+            st.error(f"Data analysis failed: {str(e)}")
+
+        # Phase 4: Subtopic integration with validation
+        # ----------------------------------------------
+        seen_subtopics = set()
+        for topic in topics:
+            topic_data = df[df.Topic == topic]
+            if topic_data.empty:
+                continue
+
+            # Process subtopics
+            subtopic_weights = Counter()
+            for _, row in topic_data[topic_data.Correct == 0].iterrows():
+                for i in (1, 2, 3):
+                    if (subtopic := row.get(f'Subtopic{i}')) and (weight := row.get(f'Weight{i}')):
+                        subtopic_weights[subtopic] += weight
 
             for subtopic, weight in subtopic_weights.most_common(2):
-                if subtopic not in G.nodes:
+                # Ensure subtopic node exists
+                if not G.has_node(subtopic):
                     G.add_node(subtopic, type='subtopic')
+                    seen_subtopics.add(subtopic)
 
-                G.add_edge(topic, subtopic, relation='subtopic',
-                           weight=int(min(weight, 5)))
+                # Add topic-subtopic relationship
+                if G.has_node(topic):
+                    G.add_edge(topic, subtopic, relation='subtopic',
+                               weight=int(min(weight, 5)))
 
-            # Connect to prerequisites
-            for prereq in G.predecessors(topic):
-                if prereq != subtopic:
-                    G.add_edge(prereq, subtopic, relation='sub_prereq',
-                               weight=1.5)
+                # Connect prerequisites to subtopic
+                for prereq in list(G.predecessors(topic)):  # Convert to list for safe iteration
+                    if prereq != subtopic and G.has_node(prereq):
+                        G.add_edge(prereq, subtopic, relation='sub_prereq', weight=1.5)
 
-            # Connect to applications
-            if subtopic in application_relations:
-                app_info = application_relations[subtopic]
-                if app_info['base_topic'] in G.nodes:
-                    G.add_edge(subtopic, app_info['base_topic'],
-                               relation='app_preparation', weight=2.0)
+        # Phase 5: Final graph validation
+        # -------------------------------
+        # Remove invalid edges post-construction
+        invalid_edges = []
+        for s, t in list(G.edges()):  # Convert to list for safe removal
+            if None in (s, t) or not G.has_node(s) or not G.has_node(t):
+                invalid_edges.append((s, t))
+
+        for s, t in invalid_edges:
+            G.remove_edge(s, t)
+            st.error(f"Removed invalid edge: {s} → {t}")
 
     return G
 def apply_dual_tier_scoring(G):
