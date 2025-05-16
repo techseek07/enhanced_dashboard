@@ -2,22 +2,19 @@
 streamlit==1.32.0
 pandas==2.2.1
 numpy==1.26.4
+scipy==1.13.0
 plotly==5.19.0
 
 # Machine learning & stats
 scikit-learn==1.4.0
-statsmodels==0.13.2  # Pinned for StratifiedTable compatibility
+statsmodels==0.14.0
 xgboost==2.0.3
-shap==0.45.1
+shap==0.45.1; sys_platform != 'darwin'  # macOS workaround
 
-# Graph processing
+# Graph & visualization
 networkx==3.2.1
 
-# Date/time handling
-python-dateutil==2.9.0  # Required for datetime operations
-
 # Hidden dependencies
-joblib==1.3.2
-threadpoolctl==3.2.0
-pyparsing==3.1.1
-scipy==1.13.0  # Explicitly added for scikit-learn dependency
+joblib==1.3.2  # Required by scikit-learn
+threadpoolctl==3.2.0  # Required by scikit-learn and xgboost
+pyparsing==3.1.1  # Required by matplotlib
