@@ -15,414 +15,92 @@ from datetime import datetime, timedelta
 # 0. Configuration & Mock Data
 # ==================================================================
 PEER_TUTORS = {
-    "Algebra": ["S101", "S102", "S105"],
-    "Geometry": ["S103", "S104", "S106"],
-    "Calculus": ["S107", "S108", "S109"]
+    "Algebra":   ["S101","S102","S105"],
+    "Geometry":  ["S103","S104","S106"],
+    "Calculus":  ["S107","S108","S109"],
+    "Chemistry": ["S110","S111","S112"],
+    "Biology":   ["S113","S114","S115"],
+    "Derivatives":["S116","S117"],
+    "Kinematics":["S118","S119"],
+    "Gas Laws":  ["S120","S121"],
 }
 PREREQUISITES = {
-    'Geometry': ['Algebra'],
-    'Calculus': ['Algebra', 'Geometry'],
-    'Chemistry': ['Algebra'],
-    'Biology': ['Chemistry'],
-    'Chemical Bonding': ['Chemistry'],
-    'Kinematics': ['Algebra'],
-    'DNA Replication': ['Biology'],
-    'Gas Laws': ['Chemistry'],
-    'Derivatives': ['product_rule','Chain_rule']
+    'Geometry':      ['Algebra'],
+    'Calculus':      ['Algebra','Geometry'],
+    'Derivatives':   ['Calculus'],           # derivative builds on calculus
+    'Chemistry':     ['Algebra'],
+    'Gas Laws':      ['Chemistry'],
+    'Biology':       ['Chemistry'],
+    'Kinematics':    ['Algebra'],
 }
 TOPICS = [
-    'Algebra', 'Geometry', 'Calculus', 'Chemistry', 'Biology',
-    'Chemical Bonding', 'Kinematics', 'DNA Replication', 'Gas Laws','Derivatives','product_rule',
-  'Chain_rule',
+    'Algebra',
+    'Geometry',
+    'Calculus',
+    'Derivatives',
+    'Chemistry',
+    'Gas Laws',
+    'Biology',
+    'Kinematics',
 ]
-SUBTOPICS = {
-    'Algebra': ['Equations', 'Inequalities', 'Polynomials'],
-    'Geometry': ['Angles', 'Shapes', 'Trigonometry'],
-    'Calculus': ['Limits', 'Integrals'],
-    'Chemistry': ['Elements', 'Reactions', 'Compounds','Chemical Bonding', 'Gas Laws'],
-    'Biology': ['Cells', 'Genetics', 'Ecology', 'DNA Replication'],
-    'Physics': ['Kinematics'],
-    'Derivatives': ['Rules', 'Applications'],
-'DNA Replication': ['DNA Structure'],
-    'Kinematics': ['Motion Equations'],
-'product_rule': ['basic_derivatives','multiplication'],      # or list of deeper sub‑prereqs if you have them
-   'Chain_rule': ['divison'],
 
+SUBTOPICS = {
+    'Algebra':    ['Equations','Inequalities','Polynomials'],
+    'Geometry':   ['Angles','Shapes','Trigonometry'],
+    'Calculus':   ['Limits','Integrals'],
+    'Derivatives':['Power Rule','Chain Rule','Product Rule'],
+    'Chemistry':  ['Elements','Reactions','Stoichiometry'],
+    'Gas Laws':   ['Boyle','Charles','Ideal Gas'],
+    'Biology':    ['Cells','Genetics','Ecology'],
+    'Kinematics': ['Velocity','Acceleration','Projectile Motion'],
 }
 
 # Application-level edges
+# Only one or two “application” edges to keep examples
 APPLICATION_RELATIONS = {
-    # Original entries
-    'Biomolecules': {'base_topic': 'Chemical Bonding', 'type': 'application'},
-    'Optimization': {'base_topic': 'Derivatives', 'type': 'application'},
-
-    # New additions
-    'Projectile Motion': {
-        'base_topic': 'Kinematics',
-        'type': 'application',
-        'description': 'Application of kinematic equations to parabolic trajectories'
-    },
-    'Genetic Engineering': {
-        'base_topic': 'DNA Replication',
-        'type': 'application',
-        'description': 'Practical applications of DNA manipulation techniques'
-    },
-    'Economic Modeling': {
-        'base_topic': 'Derivatives',
-        'type': 'application',
-        'description': 'Using calculus to model market trends and optimization'
-    },
-    'Greenhouse Effect': {
-        'base_topic': 'Gas Laws',
-        'type': 'application',
-        'description': 'Application of gas behavior principles to atmospheric science'
-    }
+    'Optimization':      {'base_topic':'Derivatives',  'type':'application',
+                           'description':'Find maxima/minima in real problems'},
+    'Reaction Rates':    {'base_topic':'Chemistry',    'type':'application',
+                           'description':'Modeling how fast reactions proceed'},
+    'Projectile Motion': {'base_topic':'Kinematics',   'type':'application',
+                           'description':'Parabolic trajectories in physics'},
 }
-
+# (Optional) A minimal quiz bank just to keep the pipeline alive
 FORMULA_QUIZ_BANK = {
     'Algebra': {
-        'Quadratic Formula': [
-            {
-                "id": "alg_q1",
-                "question": "The quadratic formula for ax² + bx + c = 0 is?",
-                "type": "formula",
-                "answer": "x = (-b ± √(b² - 4ac)) / 2a",
-                "solution_steps": ["Recall the standard form of a quadratic equation and the derivation of the formula."]
-            },
-            {
-                "id": "alg_q2",
-                "question": "What is the discriminant of a quadratic equation and what does it indicate about the roots?",
-                "type": "definition",
-                "answer": "Discriminant = b² - 4ac. If > 0, two real roots; if = 0, one real root; if < 0, two complex roots.",
-                "solution_steps": ["Define the discriminant and explain its relationship to the nature of the roots."]
-            }
-        ],
-        'Logarithm Properties': [
-            {
-                "id": "alg_q3",
-                "question": "State the product rule of logarithms: log_b(mn) = ?",
-                "type": "formula",
-                "answer": "log_b(m) + log_b(n)",
-                "solution_steps": ["Recall the property that relates the logarithm of a product to the sum of logarithms."]
-            },
-            {
-                "id": "alg_q4",
-                "question": "State the power rule of logarithms: log_b(m^n) = ?",
-                "type": "formula",
-                "answer": "n * log_b(m)",
-                "solution_steps": ["Recall the property that allows the exponent inside a logarithm to be brought out as a multiplier."]
-            }
+        'Quadratic': [
+            {"id":"alg_q1","question":"x²−5x+6=0 → x?","type":"formula","answer":"2 or 3"}
         ]
     },
     'Calculus': {
-        'Integration Formulas': [
-            {
-                "id": "calc_q3",
-                "question": "∫sin(x) dx = ?",
-                "type": "formula",
-                "answer": "-cos(x) + C",
-                "solution_steps": ["Recall the integral of the sine function."]
-            },
-            {
-                "id": "calc_q4",
-                "question": "Formula for integration by substitution?",
-                "type": "definition",
-                "answer": "∫f(g(x))g'(x) dx = ∫f(u) du, where u = g(x)",
-                "solution_steps": ["State the method for simplifying integrals by changing the variable."]
-            }
+        'Derivative Rules': [
+            {"id":"calc_q1","question":"d/dx(x³)=?","type":"formula","answer":"3x²"}
         ]
     },
     'Chemistry': {
-        'Gas Laws': [
-            {
-                "id": "chem_q1",
-                "question": "State Boyle's Law.",
-                "type": "definition",
-                "answer": "For a fixed amount of gas at constant temperature, the pressure is inversely proportional to the volume (P₁V₁ = P₂V₂).",
-                "solution_steps": ["Recall the relationship between pressure and volume of a gas at constant temperature."]
-            },
-            {
-                "id": "chem_q2",
-                "question": "The Ideal Gas Law formula is?",
-                "type": "formula",
-                "answer": "PV = nRT",
-                "solution_steps": ["Recall the equation relating pressure, volume, number of moles, ideal gas constant, and temperature."]
-            }
-        ],
-        'Chemical Formulas': [
-            {
-                "id": "chem_q3",
-                "question": "The chemical formula for water is?",
-                "type": "formula",
-                "answer": "H₂O",
-                "solution_steps": ["Recall the standard chemical formula for water."]
-            },
-            {
-                "id": "chem_q4",
-                "question": "The chemical formula for glucose is?",
-                "type": "formula",
-                "answer": "C₆H₁₂O₆",
-                "solution_steps": ["Recall the standard chemical formula for glucose."]
-            }
-        ]
-    },
-    'Biology': {
-        'Cell Biology Formulas': [
-            {
-                "id": "bio_q1",
-                "question": "What is the formula for calculating magnification of a microscope?",
-                "type": "formula",
-                "answer": "Total Magnification = Magnification of Eyepiece Lens × Magnification of Objective Lens",
-                "solution_steps": ["Recall how the magnifying powers of different lenses in a microscope combine."]
-            },
-            {
-                "id": "bio_q2",
-                "question": "What is the formula for calculating the growth rate of a population?",
-                "type": "formula",
-                "answer": "Growth Rate (r) = (Births - Deaths) / Initial Population",
-                "solution_steps": ["Recall the basic factors that influence population growth."]
-            }
-        ],
-        'Genetics Formulas': [
-            {
-                "id": "bio_q3",
-                "question": "In Hardy-Weinberg equilibrium, what does the equation p + q = 1 represent?",
-                "type": "definition",
-                "answer": "It represents the sum of the frequencies of the two alleles for a particular trait in a population.",
-                "solution_steps": ["Recall the basic principle of allele frequencies in a population."]
-            },
-            {
-                "id": "bio_q4",
-                "question": "In Hardy-Weinberg equilibrium, what does the equation p² + 2pq + q² = 1 represent?",
-                "type": "definition",
-                "answer": "It represents the sum of the frequencies of the homozygous dominant (p²), heterozygous (2pq), and homozygous recessive (q²) genotypes in a population.",
-                "solution_steps": ["Recall how allele frequencies relate to genotype frequencies under Hardy-Weinberg equilibrium."]
-            }
-        ],
-        'Photosynthesis Formulas': [
-            {
-                "id": "bio_q5",
-                "question": "What is the overall balanced chemical equation for photosynthesis?",
-                "type": "formula",
-                "answer": "6CO₂ + 6H₂O + Light Energy → C₆H₁₂O₆ + 6O₂",
-                "solution_steps": ["Recall the reactants and products of the photosynthesis process."]
-            }
-        ],
-        'Respiration Formulas': [
-            {
-                "id": "bio_q6",
-                "question": "What is the overall balanced chemical equation for aerobic respiration?",
-                "type": "formula",
-                "answer": "C₆H₁₂O₆ + 6O₂ → 6CO₂ + 6H₂O + Energy (ATP)",
-                "solution_steps": ["Recall the reactants and products of the aerobic respiration process."]
-            }
-        ]
-    },
-    'Physics': {
-        'Kinematics Formulas': [
-            {
-                "id": "phy_q1",
-                "question": "State the first equation of motion.",
-                "type": "formula",
-                "answer": "v = u + at",
-                "solution_steps": ["Recall the relationship between final velocity, initial velocity, acceleration, and time."]
-            },
-            {
-                "id": "phy_q2",
-                "question": "State the second equation of motion.",
-                "type": "formula",
-                "answer": "s = ut + (1/2)at²",
-                "solution_steps": ["Recall the relationship between displacement, initial velocity, acceleration, and time."]
-            },
-            {
-                "id": "phy_q3",
-                "question": "State the third equation of motion.",
-                "type": "formula",
-                "answer": "v² = u² + 2as",
-                "solution_steps": ["Recall the relationship between final velocity, initial velocity, acceleration, and displacement."]
-            }
-        ],
-        'Newton\'s Laws of Motion': [
-            {
-                "id": "phy_q4",
-                "question": "State Newton's second law of motion.",
-                "type": "definition",
-                "answer": "The acceleration of an object is directly proportional to the net force acting on the object and inversely proportional to its mass (F = ma).",
-                "solution_steps": ["Recall the relationship between force, mass, and acceleration."]
-            }
-        ],
-        'Optics Formulas': [
-            {
-                "id": "phy_q5",
-                "question": "The lens formula is?",
-                "type": "formula",
-                "answer": "1/f = 1/v - 1/u",
-                "solution_steps": ["Recall the relationship between focal length, image distance, and object distance for a lens."]
-            },
-            {
-                "id": "phy_q6",
-                "question": "The formula for magnification (m) produced by a lens is?",
-                "type": "formula",
-                "answer": "m = v/u",
-                "solution_steps": ["Recall the relationship between image height/distance and object height/distance."]
-            }
+        'Gas Law': [
+            {"id":"chem_q1","question":"PV=nRT → solve for T","type":"formula","answer":"T=PV/(nR)"}
         ]
     }
 }
+
 if "quiz_progress" not in st.session_state:
     st.session_state.quiz_progress = {}
 QUESTION_BANK = {
     'Algebra': [
-        {
-            "id": "alg_1",
-            "text": "Solve for x: 2x + 5 = 13",
-            "difficulty": 1,
-            "type": "free_response",
-            "answer": "4",
-            "solution_steps": ["Subtract 5 from both sides: 2x = 8", "Divide by 2: x = 4"]
-        },
-        {
-            "id": "alg_2",
-            "text": "Factor: x² - 9",
-            "difficulty": 2,
-            "type": "multiple_choice",
-            "options": ["(x+3)(x-3)", "(x+3)²", "(x-3)²", "Prime"],
-            "correct_option": 0
-        },
-        {
-            "id": "alg_3",
-            "text": "Solve the system: 2x + y = 7, x - y = 1",
-            "difficulty": 3,
-            "type": "free_response",
-            "answer": "x=2, y=3",
-            "solution_steps": ["Add the two equations: 3x = 9 => x = 3", "Substitute x in the second equation: 3 - y = 1 => y = 2"]
-        }
+        {"id":"alg_1","text":"2x+3=7, x=?","difficulty":1,"type":"free_response","answer":"2"}
     ],
     'Geometry': [
-        {
-            "id": "geo_1",
-            "text": "Find the area of a circle with radius 5",
-            "difficulty": 1,
-            "type": "free_response",
-            "answer": "78.54",
-            "solution_steps": ["Area of a circle = πr²", "Substitute r = 5: Area = π(5)² = 25π ≈ 78.54"]
-        },
-        {
-            "id": "geo_2",
-            "text": "Prove triangles ABC and DEF are similar",
-            "difficulty": 3,
-            "type": "essay",
-            "answer_guidance": "Students should provide logical steps and justifications based on similarity postulates (e.g., AA, SAS, SSS).",
-            "rubric": {
-                "Understanding of Similarity": 2,
-                "Correct Application of Postulates": 3,
-                "Logical Reasoning": 3,
-                "Clarity of Explanation": 2
-            }
-        },
-        {
-            "id": "geo_3",
-            "text": "Calculate the volume of a cone with height 6 and radius 2",
-            "difficulty": 2,
-            "type": "free_response",
-            "answer": "25.13",
-            "solution_steps": ["Volume of a cone = (1/3)πr²h", "Substitute r = 2 and h = 6: Volume = (1/3)π(2)²(6) = 8π ≈ 25.13"]
-        }
+        {"id":"geo_1","text":"Area of triangle base=4,h=3","difficulty":1,
+         "type":"free_response","answer":"6"}
     ],
     'Calculus': [
-        {
-            "id": "calc_1",
-            "text": "Find the derivative of f(x) = x³ + 2x²",
-            "difficulty": 2,
-            "type": "free_response",
-            "answer": "3x² + 4x",
-            "solution_steps": ["Apply the power rule: d/dx(xⁿ) = nxⁿ⁻¹", "d/dx(x³) = 3x²", "d/dx(2x²) = 4x", "So, f'(x) = 3x² + 4x"]
-        },
-        {
-            "id": "calc_2",
-            "text": "Evaluate ∫(2x + 1)dx from 0 to 3",
-            "difficulty": 2,
-            "type": "free_response",
-            "answer": "12",
-            "solution_steps": ["Find the antiderivative: ∫(2x + 1)dx = x² + x + C", "Evaluate at the limits: [(3)² + (3)] - [(0)² + (0)] = (9 + 3) - 0 = 12"]
-        },
-        {
-            "id": "calc_3",
-            "text": "Find the inflection points of f(x) = x³ - 6x²",
-            "difficulty": 3,
-            "type": "free_response",
-            "answer": "x = 2",
-            "solution_steps": ["Find the second derivative: f'(x) = 3x² - 12x, f''(x) = 6x - 12", "Set the second derivative to zero: 6x - 12 = 0 => x = 2", "Check the concavity change around x = 2"]
-        }
+        {"id":"calc_1","text":"∫2x dx from 0 to 2","difficulty":1,
+         "type":"free_response","answer":"4"}
     ],
     'Chemistry': [
-        {
-            "id": "chem_1",
-            "text": "Balance: H₂ + O₂ → H₂O",
-            "difficulty": 1,
-            "type": "free_response",
-            "answer": "2H₂ + O₂ → 2H₂O",
-            "solution_steps": ["Count the number of atoms of each element on both sides.", "Adjust coefficients to balance the number of atoms."]
-        },
-        {
-            "id": "chem_2",
-            "text": "Calculate pH of 0.01M HCl solution",
-            "difficulty": 2,
-            "type": "free_response",
-            "answer": "2",
-            "solution_steps": ["HCl is a strong acid, so [H⁺] = concentration of HCl = 0.01M = 10⁻² M", "pH = -log₁₀[H⁺] = -log₁₀(10⁻²) = 2"]
-        },
-        {
-            "id": "chem_3",
-            "text": "Draw the Lewis structure for CO₂",
-            "difficulty": 2,
-            "type": "drawing",
-            "answer_guidance": "Students should depict a central carbon atom double-bonded to two oxygen atoms, with lone pairs on the oxygen atoms.",
-            "elements": ["C", "O"],
-            "bonds": ["double", "double"],
-            "lone_pairs": {"O": 4}
-        }
-    ],
-    'Biology': [
-        {
-            "id": "bio_1",
-            "text": "List the phases of mitosis in order",
-            "difficulty": 1,
-            "type": "ordering",
-            "options": ["Prophase", "Metaphase", "Anaphase", "Telophase"],
-            "correct_order": [0, 1, 2, 3]
-        },
-        {
-            "id": "bio_2",
-            "text": "Explain how DNA replication works",
-            "difficulty": 2,
-            "type": "essay",
-            "answer_guidance": "Students should describe the roles of enzymes like helicase and polymerase, the concept of semi-conservative replication, and the directionality of synthesis.",
-            "rubric": {
-                "Identification of Key Enzymes": 2,
-                "Explanation of Semi-Conservative Nature": 3,
-                "Understanding of Directionality": 2,
-                "Overall Clarity and Coherence": 3
-            }
-        },
-        {
-            "id": "bio_3",
-            "text": "Calculate Hardy-Weinberg equilibrium for a population with allele frequencies p = 0.6 and q = 0.4 for a gene with two alleles.",
-            "difficulty": 3,
-            "type": "free_response",
-            "answer": "p² = 0.36, 2pq = 0.48, q² = 0.16",
-            "solution_steps": ["Hardy-Weinberg equations: p² + 2pq + q² = 1", "p² represents the frequency of the homozygous dominant genotype: (0.6)² = 0.36", "2pq represents the frequency of the heterozygous genotype: 2 * (0.6) * (0.4) = 0.48", "q² represents the frequency of the homozygous recessive genotype: (0.4)² = 0.16"]
-        }
-        ],
-'Derivatives': [
-        {
-            "id": "deriv_1",
-            "text": "Find the derivative of f(x) = 3x² + 2x",
-            "difficulty": 2,
-            "type": "free_response",
-            "answer": "6x + 2",
-            "solution_steps": ["Apply power rule to each term"]
-        }
+        {"id":"chem_1","text":"Balance H₂ + O₂ → H₂O","difficulty":1,
+         "type":"free_response","answer":"2H₂+O₂→2H₂O"}
     ]
 }
 # Question response tracking
