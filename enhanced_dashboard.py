@@ -42,7 +42,9 @@ SUBTOPICS = {
     'Chemistry': ['Elements', 'Reactions', 'Compounds','Chemical Bonding', 'Gas Laws'],
     'Biology': ['Cells', 'Genetics', 'Ecology', 'DNA Replication'],
     'Physics': ['Kinematics'],
-    'Derivatives': ['Rules', 'Chain Rule', 'Applications']
+    'Derivatives': ['Rules', 'Chain Rule', 'Applications'],
+'DNA Replication': ['DNA Structure'],
+    'Kinematics': ['Motion Equations']
 
 }
 
@@ -409,6 +411,16 @@ QUESTION_BANK = {
             "answer": "p² = 0.36, 2pq = 0.48, q² = 0.16",
             "solution_steps": ["Hardy-Weinberg equations: p² + 2pq + q² = 1", "p² represents the frequency of the homozygous dominant genotype: (0.6)² = 0.36", "2pq represents the frequency of the heterozygous genotype: 2 * (0.6) * (0.4) = 0.48", "q² represents the frequency of the homozygous recessive genotype: (0.4)² = 0.16"]
         }
+        ],
+'Derivatives': [
+        {
+            "id": "deriv_1",
+            "text": "Find the derivative of f(x) = 3x² + 2x",
+            "difficulty": 2,
+            "type": "free_response",
+            "answer": "6x + 2",
+            "solution_steps": ["Apply power rule to each term"]
+        }
     ]
 }
 # Question response tracking
@@ -512,37 +524,43 @@ MOTIVATION_QUOTES = {
 def generate_student_data(num_students=500):
     np.random.seed(42)
     rows = []
-    # Add 3 hardwired students first
     hardwired_students = [
-        # Student 0 (Topper)
         {'skill': 0.95, 'mot': 'High', 'correct_rate': 0.9, 'time_factor': 0.7},
-        # Student 1 (Average)
         {'skill': 0.65, 'mot': 'Medium', 'correct_rate': 0.58, 'time_factor': 1.0},
-        # Student 2 (Poor)
         {'skill': 0.25, 'mot': 'Low', 'correct_rate': 0.35, 'time_factor': 1.5}
     ]
 
-    for sid in range(3):  # First 3 students are special
+    # Helper function for safe subtopic sampling
+    def get_subtopics(subtopic_list):
+        try:
+            if not subtopic_list or len(subtopic_list) == 0:
+                return [None] * 3
+
+            # Always return 3 elements, using replacement if needed
+            replace = len(subtopic_list) < 3
+            sampled = np.random.choice(
+                subtopic_list,
+                size=3,
+                replace=replace
+            )
+            return list(sampled)
+        except Exception as e:
+            st.error(f"Subtopic sampling error: {str(e)}")
+            return [None] * 3
+
+    # Hardwired students generation
+    for sid in range(3):
         hw = hardwired_students[sid]
-        exam_date = datetime.now() - timedelta(days=30)  # Fixed start date
+        exam_date = datetime.now() - timedelta(days=30)
+        done = ['Algebra', 'Geometry', 'Chemical Bonding'] if sid == 0 else ['Algebra']
 
-        # Force completion of core topics
-        done = ['Algebra', 'Geometry','Chemical Bonding'] if sid == 0 else ['Algebra']
-
-        # Generate interactions for all topics
         for topic in TOPICS:
+            subtopics = SUBTOPICS.get(topic, [])
             for _ in range(5):  # Fixed interaction count
-                subtopics = SUBTOPICS.get(topic, [])
-                subs = (
-                    np.random.choice(subtopics, 3, replace=False)
-                    if subtopics
-                    else [None] * 3
-                )
-
+                subs = get_subtopics(subtopics)
                 # Force performance characteristics
                 corr = np.random.binomial(1, hw['correct_rate'])
                 tkt = max(0.1, np.random.gamma(2, 1.5) * hw['time_factor'])
-
                 rows.append({
                     'StudentID': sid,
                     'Topic': topic,
@@ -564,47 +582,48 @@ def generate_student_data(num_students=500):
                     'QuizProgress': 0
                 })
 
-    # Validate and ensure minimum student count
-    num_students = max(1, num_students)  # Ensure at least 1 student
-
+    # Regular students generation
+    num_students = max(1, num_students)
     for sid in range(num_students):
-        # Safe date generation
         exam_date = datetime.now() + timedelta(days=np.random.randint(7, 60))
+        skill = np.clip(np.random.beta(2, 1.5), 0.01, 0.99)
+        mot = np.random.choice(['High', 'Medium', 'Low'], p=[0.5, 0.3, 0.2])
 
-        # Skill generation with beta distribution safeguards
-        skill = np.clip(np.random.beta(2, 1.5), 0.01, 0.99)  # Prevent 0 or 1
-
-        # Motivation level with probability validation
-        mot = np.random.choice(['High', 'Medium', 'Low'],
-                               p=[0.5, 0.3, 0.2])
-
-        # Completed topics with size validation
-        done = np.random.choice(
-            TOPICS,
-            size=np.random.randint(0, len(TOPICS) + 1),
-            replace=False
-        ) if TOPICS else []
+        # Safe topic completion handling
+        done = []
+        if TOPICS:
+            try:
+                done = np.random.choice(
+                    TOPICS,
+                    size=np.random.randint(0, len(TOPICS) + 1),
+                    replace=False
+                ).tolist()
+            except ValueError as e:
+                st.error(f"Topic selection error: {str(e)}")
+                done = []
 
         for topic in TOPICS:
-            # Safe Poisson distribution for interaction count
-            interaction_count = np.random.poisson(3) + 1  # Ensures ≥1 interaction
-            interaction_count = max(1, min(interaction_count, 10))  # Cap at 10
+            # Safe interaction count calculation
+            interaction_count = min(max(np.random.poisson(3) + 1, 1), 10)
 
             for _ in range(interaction_count):
-                # Subtopic handling with fallbacks
                 subtopics = SUBTOPICS.get(topic, [])
-                subs = (
-                    np.random.choice(subtopics, 3, replace=len(subtopics) < 3)
-                    if subtopics
-                    else [None] * 3
-                )
+                subs = get_subtopics(subtopics)
 
-                # Dirichlet distribution with normalization
-                wts = np.random.dirichlet(np.ones(3))
-                wts /= wts.sum()  # Ensure proper normalization
+                # Dirichlet distribution safety
+                try:
+                    wts = np.random.dirichlet(np.ones(3))
+                    wts /= wts.sum()
+                except Exception as e:
+                    wts = [0.4, 0.3, 0.3]
+                    st.error(f"Weight generation error: {str(e)}")
 
+                # Quiz progress validation
+                quiz_bank = FORMULA_QUIZ_BANK.get(topic, {})
+                qp_max = max(1, len(quiz_bank))
+                qp = np.random.randint(0, qp_max) if qp_max > 0 else 0
                 # Motivation factor with bounds
-                mf = {'High': 1.0, 'Medium': 0.9, 'Low': 0.7}.get(mot, 0.7)
+                mf = {'High': 1.5, 'Medium': 1.0, 'Low': 0.7}.get(mot, 1.0)
 
                 # Binomial success with probability clamping
                 success_prob = skill * mf
@@ -618,12 +637,6 @@ def generate_student_data(num_students=500):
                 qz = max(0, np.random.binomial(1, 0.3))
                 prac = max(0, np.random.poisson(2))
                 media = max(0, np.random.poisson(1))
-
-                # Quiz progress with empty bank handling
-                quiz_bank = FORMULA_QUIZ_BANK.get(topic, {})
-                qp_max = max(1, len(quiz_bank))  # Ensure ≥1 to prevent randint error
-                qp = np.random.randint(0, qp_max)
-
                 rows.append({
                     'StudentID': sid,
                     'Topic': topic,
@@ -649,16 +662,25 @@ def generate_student_data(num_students=500):
 
 
 def validate_answer(question, student_answer):
-    """Returns (is_correct, feedback) tuple"""
-    if question['type'] == 'free_response':
-        correct = student_answer.strip() == question['answer']
-        return correct, f"Solution: {question['solution_steps']}"
+    """Enhanced validation with error handling"""
+    try:
+        if question['type'] == 'free_response':
+            correct = str(student_answer).strip() == str(question.get('answer', '')).strip()
+            solution = question.get('solution_steps', 'No solution available')
+            return correct, f"Solution: {solution}"
 
-    elif question['type'] == 'multiple_choice':
-        correct = student_answer == question['correct_option']
-        return correct, f"Correct answer: {question['options'][question['correct_option']]}"
+        elif question['type'] == 'multiple_choice':
+            options = question.get('options', [])
+            correct_index = question.get('correct_option', -1)
+            if correct_index < 0 or correct_index >= len(options):
+                return False, "Invalid question configuration"
+            return student_answer == correct_index, f"Correct answer: {options[correct_index]}"
 
-    return False, "Unknown question type"
+        return False, "Unsupported question type"
+
+    except Exception as e:
+        st.error(f"Validation error: {str(e)}")
+        return False, "Error evaluating answer"
 # ==================================================================
 # 2. Student Segmentation & Peer Insights
 # ==================================================================
