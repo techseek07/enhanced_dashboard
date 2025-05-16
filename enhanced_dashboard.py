@@ -1376,70 +1376,94 @@ def main():
         try:
             comp = df[(df.StudentID == sid) & (df.Completed)].Topic.unique().tolist()
             quiz_topics = [t for t in comp if t in FORMULA_QUIZ_BANK]
+
             if quiz_topics:
                 c1, c2 = st.columns([1, 2])
                 with c1:
                     selected_topic = st.selectbox("Select Quiz Topic", quiz_topics)
                     if st.button("Start Quiz", type="primary"):
+                        # Initialize quiz session state
                         st.session_state.show_quiz = True
                         st.session_state.quiz_topic = selected_topic
                         st.session_state.quiz_answers = {}
+
+                        # Pre-initialize all question keys
+                        topic_data = FORMULA_QUIZ_BANK[selected_topic]
+                        for sub, questions in topic_data.items():
+                            for q in questions:
+                                q_key = f"q_{selected_topic}_{q['id']}"
+                                if q_key not in st.session_state:
+                                    st.session_state[q_key] = ""
+
                 with c2:
                     if st.session_state.get('show_quiz'):
                         topic = st.session_state.quiz_topic
                         st.markdown(f"### {topic} Quiz")
+
                         with st.form(key=f"quiz_form_{topic}"):
-                            for i, (sub, ql) in enumerate(FORMULA_QUIZ_BANK[topic].items()):
+                            # Initialize form with proper question IDs
+                            for sub, questions in FORMULA_QUIZ_BANK[topic].items():
                                 st.subheader(f"Section: {sub}")
-                                for j, q in enumerate(ql):
-                                    q_key = f"q_{topic}_{i}_{j}"
-                                    st.markdown(f"**Q{j+1}:** {q['question']}")
+                                for q in questions:
+                                    q_key = f"q_{topic}_{q['id']}"
+                                    st.markdown(f"**Q{q['id']}:** {q['question']}")
+
                                     if q['type'] == 'formula':
-                                        st.text_input("Your answer:", key=q_key)
+                                        st.text_input("Your answer:",
+                                                      key=q_key,
+                                                      value=st.session_state.get(q_key, ""))
                                     else:
-                                        st.radio("Select:", ["Option A", "Option B", "Option C"], key=q_key)
+                                        options = q.get('options', ["Option A", "Option B", "Option C"])
+                                        st.radio("Select:", options,
+                                                 key=q_key,
+                                                 index=0)
                                     st.markdown("---")
+
                             if st.form_submit_button("Submit Quiz"):
                                 try:
-                                    # Get full question objects from bank
-                                    topic_questions = FORMULA_QUIZ_BANK[topic]
-                                    all_questions = [q for sublist in topic_questions.values() for q in sublist]
-
-                                    # Initialize tracking structures
+                                    # Initialize responses structure
                                     st.session_state.setdefault('quiz_responses', {}).setdefault(sid, {})
                                     st.session_state.setdefault('question_responses', {}).setdefault(sid, {})
 
-                                    # Process each question
-                                    for i, question in enumerate(all_questions):
-                                        qid = question['id']
-                                        student_answer = st.session_state[f"q_{topic}_{i}"]
+                                    # Process all questions
+                                    for sub, questions in FORMULA_QUIZ_BANK[topic].items():
+                                        for q in questions:
+                                            q_key = f"q_{topic}_{q['id']}"
+                                            student_answer = st.session_state[q_key]
 
-                                        # Validate answer
-                                        is_correct, feedback = validate_answer(question, student_answer)
+                                            # Validate answer
+                                            is_correct, feedback = validate_answer(q, student_answer)
 
-                                        # Update progress tracking
-                                        st.session_state.question_responses[sid].setdefault(qid, []).append(
-                                            int(is_correct))
+                                            # Track response
+                                            track_question_response(sid, q['id'], is_correct)
 
-                                        # Store full response details
-                                        st.session_state.quiz_responses[sid].setdefault(topic, []).append({
-                                            "qid": qid,
-                                            "answer": student_answer,
-                                            "is_correct": is_correct,
-                                            "timestamp": datetime.now(),
-                                            "feedback": feedback
-                                        })
+                                            # Store detailed response
+                                            st.session_state.quiz_responses[sid].setdefault(topic, []).append({
+                                                "qid": q['id'],
+                                                "answer": student_answer,
+                                                "is_correct": is_correct,
+                                                "timestamp": datetime.now().isoformat(),
+                                                "feedback": feedback
+                                            })
 
                                     # Update knowledge graph
-                                    update_knowledge_graph_with_quiz(G, sid, topic)
+                                    update_knowledge_graph_with_quiz(st.session_state.knowledge_graph, sid, topic)
 
-                                    st.success("Quiz submitted successfully! Recommendations will update accordingly.")
+                                    # Clear temporary input states
+                                    for sub, questions in FORMULA_QUIZ_BANK[topic].items():
+                                        for q in questions:
+                                            q_key = f"q_{topic}_{q['id']}"
+                                            if q_key in st.session_state:
+                                                del st.session_state[q_key]
+
+                                    st.success("Quiz submitted successfully! Recommendations updated.")
+                                    st.session_state.show_quiz = False
 
                                 except Exception as e:
-                                    st.error(f"Quiz error: {str(e)}")
+                                    st.error(f"Quiz submission error: {str(e)}")
+
         except Exception as e:
             st.error(f"Quiz section error: {str(e)}")
-
         # Performance Analytics
         st.markdown('<p class="medium-font">Performance Analytics</p>', unsafe_allow_html=True)
         try:
