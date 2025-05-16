@@ -1041,10 +1041,13 @@ def main():
 
         # ── Motivation override ──
         st.sidebar.subheader("Student Mood Tracker")
+        mot_options = ['High', 'Medium', 'Low']
+        # Default to 'Medium' if tier is not one of the options
+        default_idx = mot_options.index(tier) if tier in mot_options else mot_options.index('Medium')
         override_mot = st.sidebar.selectbox(
             "Override Motivation Level",
-            ['High','Medium','Low'],
-            index=['High','Medium','Low'].index(tier),
+            mot_options,
+            index=default_idx,
             key="override_mot"
         )
         # Force‐update our df slice for this student
