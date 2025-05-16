@@ -68,18 +68,36 @@ APPLICATION_RELATIONS = {
 # (Optional) A minimal quiz bank just to keep the pipeline alive
 FORMULA_QUIZ_BANK = {
     'Algebra': {
-        'Quadratic': [
-            {"id":"alg_q1","question":"x²−5x+6=0 → x?","type":"formula","answer":"2 or 3"}
+        'Quadratic Equations': [
+            {
+                "id": "alg_q1",
+                "question": "x²−5x+6=0 → x?",
+                "type": "formula",
+                "answer": "2 or 3",
+                "solution_steps": ["Factor: (x-2)(x-3)=0", "Solutions: x=2, x=3"]
+            }
         ]
     },
     'Calculus': {
         'Derivative Rules': [
-            {"id":"calc_q1","question":"d/dx(x³)=?","type":"formula","answer":"3x²"}
+            {
+                "id": "calc_q1",
+                "question": "d/dx(x³)=?",
+                "type": "formula",
+                "answer": "3x²",
+                "solution_steps": ["Apply the power rule: d/dx(xⁿ) = nxⁿ⁻¹ where n=3."]
+            }
         ]
     },
     'Chemistry': {
-        'Gas Law': [
-            {"id":"chem_q1","question":"PV=nRT → solve for T","type":"formula","answer":"T=PV/(nR)"}
+        'Gas Laws': [
+            {
+                "id": "chem_q1",
+                "question": "PV=nRT → solve for T",
+                "type": "formula",
+                "answer": "T=PV/(nR)",
+                "solution_steps": ["Divide both sides of the equation by 'nR' to isolate 'T'."]
+            }
         ]
     }
 }
@@ -204,18 +222,14 @@ MOTIVATION_QUOTES = {
 def generate_student_data(num_students=500):
     np.random.seed(42)
     rows = []
-    hardwired_students = [
-        {'skill': 0.95, 'mot': 'High', 'correct_rate': 0.9, 'time_factor': 0.7},
-        {'skill': 0.65, 'mot': 'Medium', 'correct_rate': 0.58, 'time_factor': 1.0},
-        {'skill': 0.25, 'mot': 'Low', 'correct_rate': 0.35, 'time_factor': 1.5}
-    ]
+    study_profiles = ['video_heavy', 'practice_heavy', 'quiz_heavy', 'balanced']
+    profile_dist = [0.3, 0.25, 0.2, 0.25]
 
     # Helper function for safe subtopic sampling
     def get_subtopics(subtopic_list):
         try:
             if not subtopic_list or len(subtopic_list) == 0:
                 return [None] * 3
-
             # Always return 3 elements, using replacement if needed
             replace = len(subtopic_list) < 3
             sampled = np.random.choice(
@@ -225,121 +239,112 @@ def generate_student_data(num_students=500):
             )
             return list(sampled)
         except Exception as e:
-            st.error(f"Subtopic sampling error: {str(e)}")
+            print(f"Subtopic sampling error: {str(e)}")
             return [None] * 3
 
-    # Hardwired students generation
-    for sid in range(3):
-        hw = hardwired_students[sid]
-        exam_date = datetime.now() - timedelta(days=30)
-        done = ['Algebra', 'Geometry', 'Chemical Bonding'] if sid == 0 else ['Algebra']
-
-        for topic in TOPICS:
-            subtopics = SUBTOPICS.get(topic, [])
-            for _ in range(5):  # Fixed interaction count
-                subs = get_subtopics(subtopics)
-                # Force performance characteristics
-                corr = np.random.binomial(1, hw['correct_rate'])
-                tkt = max(0.1, np.random.gamma(2, 1.5) * hw['time_factor'])
-                rows.append({
-                    'StudentID': sid,
-                    'Topic': topic,
-                    'Subtopic1': subs[0],
-                    'Subtopic2': subs[1],
-                    'Subtopic3': subs[2],
-                    'Weight1': 0.4,
-                    'Weight2': 0.3,
-                    'Weight3': 0.3,
-                    'Correct': corr,
-                    'TimeTaken': tkt,
-                    'ExamDate': exam_date,
-                    'Completed': topic in done,
-                    'MotivationLevel': hw['mot'],
-                    'VideosWatched': 5 if sid == 0 else 3,
-                    'QuizzesTaken': 4 if sid == 0 else 1,
-                    'PracticeSessions': 6 if sid == 0 else 2,
-                    'MediaClicks': 3,
-                    'QuizProgress': 0
-                })
-
-    # Regular students generation
-    num_students = max(1, num_students)
     for sid in range(num_students):
-        exam_date = datetime.now() + timedelta(days=np.random.randint(7, 60))
-        skill = np.clip(np.random.beta(2, 1.5), 0.01, 0.99)
-        mot = np.random.choice(['High', 'Medium', 'Low'], p=[0.5, 0.3, 0.2])
+        try:
+            # Profile selection
+            study_profile = np.random.choice(study_profiles, p=profile_dist)
 
-        # Safe topic completion handling
-        done = []
-        if TOPICS:
-            try:
-                done = np.random.choice(
-                    TOPICS,
-                    size=np.random.randint(0, len(TOPICS) + 1),
-                    replace=False
-                ).tolist()
-            except ValueError as e:
-                st.error(f"Topic selection error: {str(e)}")
-                done = []
+            # Base characteristics
+            exam_date = datetime.now() - timedelta(days=np.random.randint(1, 60))
+            base_skill = np.random.beta(2, 1.5)
+            motivation = np.random.choice(['High', 'Medium', 'Low'], p=[0.4, 0.4, 0.2])
+            mf = {'High': 1.4, 'Medium': 1.0, 'Low': 0.6}.get(motivation, 1.0)  # Safe lookup
 
-        for topic in TOPICS:
-            # Safe interaction count calculation
-            interaction_count = min(max(np.random.poisson(3) + 1, 1), 10)
-
-            for _ in range(interaction_count):
-                subtopics = SUBTOPICS.get(topic, [])
-                subs = get_subtopics(subtopics)
-
-                # Dirichlet distribution safety
-                try:
-                    wts = np.random.dirichlet(np.ones(3))
-                    wts /= wts.sum()
-                except Exception as e:
-                    wts = [0.4, 0.3, 0.3]
-                    st.error(f"Weight generation error: {str(e)}")
-
-                # Quiz progress validation
-                quiz_bank = FORMULA_QUIZ_BANK.get(topic, {})
-                qp_max = max(1, len(quiz_bank))
-                qp = np.random.randint(0, qp_max) if qp_max > 0 else 0
-                # Motivation factor with bounds
-                mf = {'High': 1.5, 'Medium': 1.0, 'Low': 0.7}.get(mot, 1.0)
-
-                # Binomial success with probability clamping
-                success_prob = skill * mf
-                corr = np.random.binomial(1, np.clip(success_prob, 0.01, 0.99))
-
-                # Time taken with gamma distribution safeguards
-                tkt = max(0.1, np.random.gamma(2, 1.5) * (2 - mf))
-
-                # Usage metrics with validation
+            # Profile-driven behavior
+            if study_profile == 'video_heavy':
+                vids = max(0, np.random.poisson(4))
+                prac = max(0, np.random.poisson(1))
+                qz = max(0, np.random.poisson(1))
+            elif study_profile == 'practice_heavy':
                 vids = max(0, np.random.poisson(1))
-                qz = max(0, np.random.binomial(1, 0.3))
+                prac = max(0, np.random.poisson(5))
+                qz = max(0, np.random.poisson(2))
+            elif study_profile == 'quiz_heavy':
+                vids = max(0, np.random.poisson(2))
                 prac = max(0, np.random.poisson(2))
-                media = max(0, np.random.poisson(1))
-                rows.append({
-                    'StudentID': sid,
-                    'Topic': topic,
-                    'Subtopic1': subs[0],
-                    'Subtopic2': subs[1],
-                    'Subtopic3': subs[2],
-                    'Weight1': wts[0],
-                    'Weight2': wts[1],
-                    'Weight3': wts[2],
-                    'Correct': corr,
-                    'TimeTaken': tkt,
-                    'ExamDate': exam_date,
-                    'Completed': topic in done,
-                    'MotivationLevel': mot,
-                    'VideosWatched': vids,
-                    'QuizzesTaken': qz,
-                    'PracticeSessions': prac,
-                    'MediaClicks': media,
-                    'QuizProgress': qp
-                })
+                qz = max(0, np.random.poisson(4))
+            else:  # balanced
+                vids = max(0, np.random.poisson(2))
+                prac = max(0, np.random.poisson(3))
+                qz = max(0, np.random.poisson(2))
+
+            # Safe topic completion handling
+            done_topics = []
+            if TOPICS:
+                try:
+                    done_topics = np.random.choice(
+                        TOPICS,
+                        size=np.random.randint(0, len(TOPICS) + 1),
+                        replace=False
+                    ).tolist()
+                except ValueError as e:
+                    print(f"Topic selection error: {str(e)}")
+                    done_topics = []
+
+            # Per-topic interactions
+            for topic in TOPICS:
+                # Safe interaction count calculation
+                interaction_count = min(max(np.random.poisson(3) + 1, 1), 10)
+                done = topic in done_topics or np.random.rand() < 0.3  # 30% completion probability
+
+                for _ in range(interaction_count):
+                    # Subtopic handling
+                    subtopics = SUBTOPICS.get(topic, [])
+                    subs = get_subtopics(subtopics)
+
+                    # Success probability with model relationship between behaviors and outcomes
+                    success_prob = np.clip(
+                        base_skill * mf * (1 + 0.1 * vids + 0.15 * prac + 0.07 * qz),
+                        0.1, 0.95
+                    )
+
+                    # Quiz progress validation
+                    quiz_bank = FORMULA_QUIZ_BANK.get(topic, {})
+                    qp_max = max(1, len(quiz_bank))
+                    qp = np.random.randint(0, qp_max) if qp_max > 0 else 0
+
+                    # Dirichlet distribution for weights with safety
+                    try:
+                        wts = np.random.dirichlet(np.ones(3))
+                        wts /= wts.sum()  # Ensure sum to 1
+                    except Exception as e:
+                        wts = [0.4, 0.3, 0.3]
+                        print(f"Weight generation error: {str(e)}")
+
+                    # Time modeling with skill and motivation factors
+                    time_factor = 2 - mf  # Inverse relationship: higher motivation -> less time
+                    tkt = max(0.1, np.random.gamma(2, 1.5) * time_factor)
+
+                    rows.append({
+                        'StudentID': sid,
+                        'Topic': topic,
+                        'Subtopic1': subs[0],
+                        'Subtopic2': subs[1],
+                        'Subtopic3': subs[2],
+                        'Weight1': wts[0],
+                        'Weight2': wts[1],
+                        'Weight3': wts[2],
+                        'Correct': np.random.binomial(1, success_prob),
+                        'TimeTaken': tkt,
+                        'ExamDate': exam_date,
+                        'Completed': done,
+                        'MotivationLevel': motivation,
+                        'VideosWatched': vids,
+                        'PracticeSessions': prac,
+                        'QuizzesTaken': qz,
+                        'MediaClicks': max(0, np.random.poisson(2)),
+                        'QuizProgress': qp,
+                        'StudyProfile': study_profile,
+                        'ConsistencyScore': np.random.beta(3, 1)
+                    })
+        except Exception as e:
+            print(f"Error generating data for student {sid}: {str(e)}")
+            continue
 
     return pd.DataFrame(rows)
-
 
 def validate_answer(question, student_answer):
     """Enhanced validation with error handling"""
@@ -1371,99 +1376,142 @@ def main():
             else:
                 st.warning("Select a student to enable peer comparison")
 
-        # Quiz Section
-        st.markdown('<p class="medium-font">Interactive Quiz Section</p>', unsafe_allow_html=True)
-        try:
-            comp = df[(df.StudentID == sid) & (df.Completed)].Topic.unique().tolist()
-            quiz_topics = [t for t in comp if t in FORMULA_QUIZ_BANK]
+                # Quiz Section
+                st.markdown('<p class="medium-font">Interactive Quiz Section</p>', unsafe_allow_html=True)
+                try:
+                    comp = df[(df.StudentID == sid) & (df.Completed)].Topic.unique().tolist()
+                    quiz_topics = [t for t in comp if t in FORMULA_QUIZ_BANK]
 
-            if quiz_topics:
-                c1, c2 = st.columns([1, 2])
-                with c1:
-                    selected_topic = st.selectbox("Select Quiz Topic", quiz_topics)
-                    if st.button("Start Quiz", type="primary"):
-                        # Initialize quiz session state
-                        st.session_state.show_quiz = True
-                        st.session_state.quiz_topic = selected_topic
-                        st.session_state.quiz_answers = {}
+                    if quiz_topics:
+                        c1, c2 = st.columns([1, 2])
+                        with c1:
+                            selected_topic = st.selectbox("Select Quiz Topic", quiz_topics)
+                            if st.button("Start Quiz", type="primary"):
+                                # Initialize quiz session state
+                                st.session_state.show_quiz = True
+                                st.session_state.quiz_topic = selected_topic
+                                st.session_state.quiz_answers = {}
 
-                        # Pre-initialize all question keys
-                        topic_data = FORMULA_QUIZ_BANK[selected_topic]
-                        for sub, questions in topic_data.items():
-                            for q in questions:
-                                q_key = f"q_{selected_topic}_{q['id']}"
-                                if q_key not in st.session_state:
-                                    st.session_state[q_key] = ""
-
-                with c2:
-                    if st.session_state.get('show_quiz'):
-                        topic = st.session_state.quiz_topic
-                        st.markdown(f"### {topic} Quiz")
-
-                        with st.form(key=f"quiz_form_{topic}"):
-                            # Initialize form with proper question IDs
-                            for sub, questions in FORMULA_QUIZ_BANK[topic].items():
-                                st.subheader(f"Section: {sub}")
-                                for q in questions:
-                                    q_key = f"q_{topic}_{q['id']}"
-                                    st.markdown(f"**Q{q['id']}:** {q['question']}")
-
-                                    if q['type'] == 'formula':
-                                        st.text_input("Your answer:",
-                                                      key=q_key,
-                                                      value=st.session_state.get(q_key, ""))
-                                    else:
-                                        options = q.get('options', ["Option A", "Option B", "Option C"])
-                                        st.radio("Select:", options,
-                                                 key=q_key,
-                                                 index=0)
-                                    st.markdown("---")
-
-                            if st.form_submit_button("Submit Quiz"):
-                                try:
-                                    # Initialize responses structure
-                                    st.session_state.setdefault('quiz_responses', {}).setdefault(sid, {})
-                                    st.session_state.setdefault('question_responses', {}).setdefault(sid, {})
-
-                                    # Process all questions
-                                    for sub, questions in FORMULA_QUIZ_BANK[topic].items():
+                                # Pre-initialize all question keys
+                                if selected_topic in FORMULA_QUIZ_BANK:
+                                    topic_data = FORMULA_QUIZ_BANK[selected_topic]
+                                    for sub, questions in topic_data.items():
                                         for q in questions:
-                                            q_key = f"q_{topic}_{q['id']}"
-                                            student_answer = st.session_state[q_key]
-
-                                            # Validate answer
-                                            is_correct, feedback = validate_answer(q, student_answer)
-
-                                            # Track response
-                                            track_question_response(sid, q['id'], is_correct)
-
-                                            # Store detailed response
-                                            st.session_state.quiz_responses[sid].setdefault(topic, []).append({
-                                                "qid": q['id'],
-                                                "answer": student_answer,
-                                                "is_correct": is_correct,
-                                                "timestamp": datetime.now().isoformat(),
-                                                "feedback": feedback
-                                            })
-
-                                    # Update knowledge graph
-                                    update_knowledge_graph_with_quiz(st.session_state.knowledge_graph, sid, topic)
-
-                                    # Clear temporary input states
-                                    for sub, questions in FORMULA_QUIZ_BANK[topic].items():
-                                        for q in questions:
-                                            q_key = f"q_{topic}_{q['id']}"
-                                            if q_key in st.session_state:
-                                                del st.session_state[q_key]
-
-                                    st.success("Quiz submitted successfully! Recommendations updated.")
+                                            q_key = f"q_{selected_topic}_{q['id']}"
+                                            if q_key not in st.session_state:
+                                                st.session_state[q_key] = ""
+                                else:
+                                    st.error("Invalid quiz topic selected")
                                     st.session_state.show_quiz = False
 
-                                except Exception as e:
-                                    st.error(f"Quiz submission error: {str(e)}")
+                        with c2:
+                            if st.session_state.get('show_quiz'):
+                                topic = st.session_state.quiz_topic
 
-        except Exception as e:
-            st.error(f"Quiz section error: {str(e)}")
+                                # Validate topic exists in quiz bank
+                                if topic not in FORMULA_QUIZ_BANK:
+                                    st.error("Invalid quiz topic selected")
+                                    return
+
+                                # Validate questions exist for topic
+                                if not FORMULA_QUIZ_BANK[topic]:
+                                    st.error("No questions available for this topic")
+                                    return
+
+                                st.markdown(f"### {topic} Quiz")
+
+                                with st.form(key=f"quiz_form_{topic}"):
+                                    # Initialize form with proper question IDs
+                                    for sub, questions in FORMULA_QUIZ_BANK[topic].items():
+                                        st.subheader(f"Section: {sub}")
+                                        for q in questions:
+                                            q_key = f"q_{topic}_{q['id']}"
+                                            st.markdown(f"**Q{q['id']}:** {q['question']}")
+
+                                            if q['type'] == 'formula':
+                                                st.text_input("Your answer:",
+                                                              key=q_key,
+                                                              value=st.session_state.get(q_key, ""))
+                                            else:
+                                                options = q.get('options', ["Option A", "Option B", "Option C"])
+                                                st.radio("Select:", options,
+                                                         key=q_key,
+                                                         index=0)
+                                            st.markdown("---")
+
+                                    if st.form_submit_button("Submit Quiz"):
+                                        try:
+                                            # Initialize response structures if not present
+                                            if 'quiz_responses' not in st.session_state:
+                                                st.session_state.quiz_responses = {}
+                                            if 'question_responses' not in st.session_state:
+                                                st.session_state.question_responses = {}
+
+                                            # Initialize student-specific structures
+                                            if sid not in st.session_state.quiz_responses:
+                                                st.session_state.quiz_responses[sid] = {}
+                                            if sid not in st.session_state.question_responses:
+                                                st.session_state.question_responses[sid] = {}
+
+                                            # Validate topic again (defense in depth)
+                                            if topic not in FORMULA_QUIZ_BANK:
+                                                st.error("Invalid quiz topic selected")
+                                                return
+
+                                            # Validate questions exist for topic
+                                            if not FORMULA_QUIZ_BANK[topic]:
+                                                st.error("No questions available for this topic")
+                                                return
+
+                                            # Process all questions
+                                            for sub, questions in FORMULA_QUIZ_BANK[topic].items():
+                                                for q in questions:
+                                                    q_key = f"q_{topic}_{q['id']}"
+
+                                                    # Safely get student answer from session state
+                                                    student_answer = st.session_state.get(q_key, "")
+
+                                                    # Validate answer
+                                                    is_correct, feedback = validate_answer(q, student_answer)
+
+                                                    # Track response
+                                                    track_question_response(sid, q['id'], is_correct)
+
+                                                    # Store detailed response
+                                                    if topic not in st.session_state.quiz_responses[sid]:
+                                                        st.session_state.quiz_responses[sid][topic] = []
+
+                                                    st.session_state.quiz_responses[sid][topic].append({
+                                                        "qid": q['id'],
+                                                        "answer": student_answer,
+                                                        "is_correct": is_correct,
+                                                        "timestamp": datetime.now().isoformat(),
+                                                        "feedback": feedback
+                                                    })
+
+                                            # Update knowledge graph
+                                            update_knowledge_graph_with_quiz(st.session_state.knowledge_graph, sid,
+                                                                             topic)
+
+                                            # Clear temporary input states
+                                            for sub, questions in FORMULA_QUIZ_BANK[topic].items():
+                                                for q in questions:
+                                                    q_key = f"q_{topic}_{q['id']}"
+                                                    if q_key in st.session_state:
+                                                        del st.session_state[q_key]
+
+                                            st.success("Quiz submitted successfully! Recommendations updated.")
+                                            st.session_state.show_quiz = False
+
+                                        except Exception as e:
+                                            st.error(f"Quiz submission error: {str(e)}")
+                                            import traceback
+                                            st.error(traceback.format_exc())
+
+                except Exception as e:
+                    st.error(f"Quiz section error: {str(e)}")
+                    import traceback
+                    st.error(traceback.format_exc())
         # Performance Analytics
         st.markdown('<p class="medium-font">Performance Analytics</p>', unsafe_allow_html=True)
         try:
