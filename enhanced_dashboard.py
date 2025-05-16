@@ -963,6 +963,9 @@ def analyze_item_level_performance(sid):
 # ==================================================================
 # 8. Streamlit UI
 # ==================================================================
+# ==================================================================
+# 8. Streamlit UI
+# ==================================================================
 def main():
     st.set_page_config(layout="wide", page_title="Learning Dashboard", page_icon="🧠")
 
@@ -976,11 +979,12 @@ def main():
     .graph-container {border:1px solid #ddd; border-radius:5px; padding:10px;}
     </style>
     """, unsafe_allow_html=True)
+
     if 'quiz_progress' not in st.session_state:
         st.session_state.quiz_progress = {}
-
     if 'question_responses' not in st.session_state:
         st.session_state.question_responses = {}
+
     st.markdown('<p class="big-font">Enhanced Learning Dashboard 🧠</p>', unsafe_allow_html=True)
 
     # Initialize critical variables
@@ -1008,50 +1012,60 @@ def main():
                 st.error("Student segmentation failed")
                 st.stop()
 
+        # Sidebar settings
         st.sidebar.markdown('# Settings', unsafe_allow_html=True)
 
-        # demo student
+        # Student selection
         all_students = sorted(df.StudentID.unique())
         hardwired = [0, 1, 2]
         other_students = [s for s in all_students if s not in hardwired]
-
         combined_students = hardwired + other_students
 
-        options = [
-            f"Student {s} {'(Demo Topper)' if s == 0 else '(Demo Average)' if s == 1 else '(Demo Poor)'}"
-            if s in hardwired else f"Student {s}"
-            for s in combined_students
-        ]
+        options = []
+        for s in combined_students:
+            if s == 0:
+                options.append(f"Student {s} (Demo Topper)")
+            elif s == 1:
+                options.append(f"Student {s} (Demo Average)")
+            elif s == 2:
+                options.append(f"Student {s} (Demo Poor)")
+            else:
+                options.append(f"Student {s}")
 
-        # Define the format function properly
         def format_student(student_id):
-            index = combined_students.index(student_id)
-            return options[index]
+            idx = combined_students.index(student_id)
+            return options[idx]
 
         sid = st.sidebar.selectbox("Select Student", combined_students, format_func=format_student)
 
+        # Performance tier display
         student_info = seg[seg.StudentID == sid]
-        tier = student_info['label'].iloc[0] if not student_info.empty else 'Medium'
+        perf_tier = student_info['label'].iloc[0] if not student_info.empty else 'Average'
         tier_colors = {'Topper': 'green', 'Average': 'blue', 'Poor': 'red'}
         st.sidebar.markdown(
             f"### Student Details\n"
-            f"**Performance Tier:** <span style='color:{tier_colors.get(tier, 'black')}'>{tier}</span>",
+            f"**Performance Tier:** <span style='color:{tier_colors.get(perf_tier, 'black')}'>{perf_tier}</span>",
             unsafe_allow_html=True
         )
 
         # ── Motivation override ──
         st.sidebar.subheader("Student Mood Tracker")
-        mot_options = ['High', 'Medium', 'Low']
-        # Default to 'Medium' if tier is not one of the options
-        default_idx = mot_options.index(tier) if tier in mot_options else mot_options.index('Medium')
+        motivation_mapping = {
+            'Topper': 'High',
+            'Average': 'Medium',
+            'Poor': 'Low'
+        }
+        current_mot = motivation_mapping.get(perf_tier, 'Medium')
+        mood_options = ['High', 'Medium', 'Low']
+        default_idx = mood_options.index(current_mot)
         override_mot = st.sidebar.selectbox(
-            "Override Motivation Level",
-            mot_options,
+            " Motivation Level",
+            mood_options,
             index=default_idx,
             key="override_mot"
         )
-        # Force‐update our df slice for this student
         df.loc[df.StudentID == sid, 'MotivationLevel'] = override_mot
+
         # ── Peer Tutoring Section ──
         with st.expander("🔗 Peer Tutoring Matches", expanded=False):
             st.write("Students who complement your strengths/weaknesses:")
@@ -1061,215 +1075,216 @@ def main():
                     st.markdown(f"- {line}")
             else:
                 st.info("No suitable peer matches found right now.")
-                # --- Main Content Sections ---
-            col1, col2 = st.columns([1, 2])
 
-            # Knowledge Graph Visualization
-            with col1:
-                st.markdown('<p class="medium-font">Knowledge Graph</p>', unsafe_allow_html=True)
-                with st.container(height=400, border=True):
-                    try:
-                        pos = nx.spring_layout(G, seed=42)
-                        edge_colors = {
-                            'prereq': '#FF0000', 'odds': '#00FF00',
-                            'shap_importance': '#0000FF', 'application': '#800080',
-                            'subtopic': '#FFA500', 'sub_prereq': '#FF69B4',
-                            'app_preparation': '#008080'
-                        }
+        # Main content layout
+        col1, col2 = st.columns([1, 2])
 
-                        # Create traces
-                        traces = []
-                        for rel, col in edge_colors.items():
-                            edges = [(u, v) for u, v, d in G.edges(data=True) if d.get('relation') == rel]
-                            if edges:
-                                xs, ys = [], []
-                                for u, v in edges:
-                                    if u in pos and v in pos:
-                                        xs += [pos[u][0], pos[v][0], None]
-                                        ys += [pos[u][1], pos[v][1], None]
-                                traces.append(
-                                    go.Scatter(x=xs, y=ys, mode='lines', line=dict(color=col, width=2), name=rel))
+        # Knowledge Graph Visualization
+        with col1:
+            st.markdown('<p class="medium-font">Knowledge Graph</p>', unsafe_allow_html=True)
+            with st.container(height=400, border=True):
+                try:
+                    pos = nx.spring_layout(G, seed=42)
+                    edge_colors = {
+                        'prereq': '#FF0000', 'odds': '#00FF00',
+                        'shap_importance': '#0000FF', 'application': '#800080',
+                        'subtopic': '#FFA500', 'sub_prereq': '#FF69B4',
+                        'app_preparation': '#008080'
+                    }
 
-                        # Node trace
-                        node_x = [pos[n][0] for n in G.nodes if n in pos]
-                        node_y = [pos[n][1] for n in G.nodes if n in pos]
-                        node_text = [n for n in G.nodes if n in pos]
+                    # Create traces
+                    traces = []
+                    for rel, col in edge_colors.items():
+                        edges = [(u, v) for u, v, d in G.edges(data=True) if d.get('relation') == rel]
+                        if edges:
+                            xs, ys = [], []
+                            for u, v in edges:
+                                if u in pos and v in pos:
+                                    xs += [pos[u][0], pos[v][0], None]
+                                    ys += [pos[u][1], pos[v][1], None]
+                            traces.append(
+                                go.Scatter(x=xs, y=ys, mode='lines', line=dict(color=col, width=2), name=rel))
 
-                        # Node colors
-                        acc_by_topic = df[df.StudentID == sid].groupby('Topic').Correct.mean()
-                        node_colors = []
-                        for node in [n for n in G.nodes if n in pos]:
-                            perf = acc_by_topic.get(node, np.nan)
-                            if np.isnan(perf):
-                                node_colors.append('#FFA500')
-                            elif perf < 0.3:
-                                node_colors.append('#FF0000')
-                            elif perf < 0.7:
-                                node_colors.append('#FFFF00')
-                            else:
-                                node_colors.append('#00FF00')
+                    # Node trace
+                    node_x = [pos[n][0] for n in G.nodes if n in pos]
+                    node_y = [pos[n][1] for n in G.nodes if n in pos]
+                    node_text = [n for n in G.nodes if n in pos]
 
-                        node_trace = go.Scatter(
-                            x=node_x, y=node_y, mode='markers+text', text=node_text,
-                            marker=dict(size=15, color=node_colors, line=dict(width=1, color='#000000')),
-                            textposition="top center", name='Topics'
-                        )
+                    # Node colors
+                    acc_by_topic = df[df.StudentID == sid].groupby('Topic').Correct.mean()
+                    node_colors = []
+                    for node in [n for n in G.nodes if n in pos]:
+                        perf = acc_by_topic.get(node, np.nan)
+                        if np.isnan(perf):
+                            node_colors.append('#FFA500')
+                        elif perf < 0.3:
+                            node_colors.append('#FF0000')
+                        elif perf < 0.7:
+                            node_colors.append('#FFFF00')
+                        else:
+                            node_colors.append('#00FF00')
 
-                        fig = go.Figure(data=traces + [node_trace], layout=go.Layout(
-                            showlegend=False, hovermode='closest', margin=dict(b=20, l=5, r=5, t=40),
-                            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                            height=350
-                        ))
-                        st.plotly_chart(fig, use_container_width=True)
-                        st.caption("Topic colors: 🔴 Needs work | 🟡 Average | 🟢 Strong | 🟠 No data")
+                    node_trace = go.Scatter(
+                        x=node_x, y=node_y, mode='markers+text', text=node_text,
+                        marker=dict(size=15, color=node_colors, line=dict(width=1, color='#000000')),
+                        textposition="top center", name='Topics'
+                    )
 
-                    except Exception as e:
-                        st.error(f"Graph display error: {str(e)}")
+                    fig = go.Figure(data=traces + [node_trace], layout=go.Layout(
+                        showlegend=False, hovermode='closest', margin=dict(b=20, l=5, r=5, t=40),
+                        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                        height=350
+                    ))
+                    st.plotly_chart(fig, use_container_width=True)
+                    st.caption("Topic colors: 🔴 Needs work | 🟡 Average | 🟢 Strong | 🟠 No data")
 
-            # Recommendations Panel
-            with col2:
-                st.markdown('<p class="medium-font">Personalized Learning Recommendations</p>', unsafe_allow_html=True)
-                if sid is not None:
-                    try:
-                        recommendations = get_recommendations(sid, df, G, seg, tier)
-                        rec_types = {
-                            "🚧 Bridge": [], "🧠 HOTS": [], "📚 Practice": [],
-                            "📝 Quiz": [], "🎥 Media": [], "🔗 Analogy": [],
-                            "📊 Formula": [], "🔧 Subtopics": [], "🔄 Apply": [],
-                            "👍 Easy Win": [], "💭 Quote": []
-                        }
+                except Exception as e:
+                    st.error(f"Graph display error: {str(e)}")
 
-                        for rec in recommendations:
-                            for prefix in rec_types:
-                                if rec.startswith(prefix):
-                                    rec_types[prefix].append(rec)
-                                    break
+        # Recommendations Panel
+        with col2:
+            st.markdown('<p class="medium-font">Personalized Learning Recommendations</p>', unsafe_allow_html=True)
+            if sid is not None:
+                try:
+                    recommendations = get_recommendations(sid, df, G, seg, override_mot)
+                    rec_types = {
+                        "🚧 Bridge": [], "🧠 HOTS": [], "📚 Practice": [],
+                        "📝 Quiz": [], "🎥 Media": [], "🔗 Analogy": [],
+                        "📊 Formula": [], "🔧 Subtopics": [], "🔄 Apply": [],
+                        "👍 Easy Win": [], "💭 Quote": []
+                    }
 
-                        cols = st.columns(3)
-                        with cols[0]:
-                            st.markdown("### Study Plan")
-                            for rec in rec_types["🚧 Bridge"] + rec_types["📚 Practice"] + rec_types["📊 Formula"]:
-                                st.info(rec)
-                        with cols[1]:
-                            st.markdown("### Challenges")
-                            for rec in rec_types["🧠 HOTS"] + rec_types["📝 Quiz"] + rec_types["🔧 Subtopics"]:
-                                st.success(rec)
-                        with cols[2]:
-                            st.markdown("### Engagement")
-                            for rec in rec_types["💭 Quote"]:
-                                st.markdown(
-                                    f'<div style="background-color:#f0f7fb; padding:10px; border-radius:5px;">{rec}</div>',
-                                    unsafe_allow_html=True)
-                            for rec in rec_types["🎥 Media"] + rec_types["🔗 Analogy"] + rec_types["🔄 Apply"] + rec_types[
-                                "👍 Easy Win"]:
-                                st.warning(rec)
-                    except Exception as e:
-                        st.error(f"Recommendation error: {str(e)}")
-            # ==================================================================
-            # Strategic Peer Comparison Section in main()
-            # ==================================================================
-            with st.expander("🔍 Strategic Peer Comparison", expanded=True):
-                    if not df.empty and sid is not None:
-                        try:
-                            # Get current student's start date
-                            current_data = df[df.StudentID == sid]
-                            current_start = current_data.ExamDate.min()
+                    for rec in recommendations:
+                        for prefix in rec_types:
+                            if rec.startswith(prefix):
+                                rec_types[prefix].append(rec)
+                                break
 
-                            # Find comparable peers (started within 30 days)
-                            comparable_peers = df[
-                                (df.ExamDate > current_start - pd.Timedelta(days=30)) &
-                                (df.ExamDate < current_start + pd.Timedelta(days=30)) &
-                                (df.StudentID != sid)
-                                ].StudentID.unique()
+                    cols = st.columns(3)
+                    with cols[0]:
+                        st.markdown("### Study Plan")
+                        for rec in rec_types["🚧 Bridge"] + rec_types["📚 Practice"] + rec_types["📊 Formula"]:
+                            st.info(rec)
+                    with cols[1]:
+                        st.markdown("### Challenges")
+                        for rec in rec_types["🧠 HOTS"] + rec_types["📝 Quiz"] + rec_types["🔧 Subtopics"]:
+                            st.success(rec)
+                    with cols[2]:
+                        st.markdown("### Engagement")
+                        for rec in rec_types["💭 Quote"]:
+                            st.markdown(
+                                f'<div style="background-color:#f0f7fb; padding:10px; border-radius:5px;">{rec}</div>',
+                                unsafe_allow_html=True)
+                        for rec in rec_types["🎥 Media"] + rec_types["🔗 Analogy"] + rec_types["🔄 Apply"] + rec_types[
+                            "👍 Easy Win"]:
+                            st.warning(rec)
+                except Exception as e:
+                    st.error(f"Recommendation error: {str(e)}")
 
-                            if len(comparable_peers) > 0:
-                                # Calculate performance differences
-                                peer_perf = df[df.StudentID.isin(comparable_peers)].groupby('StudentID').Correct.mean()
-                                current_perf = current_data.Correct.mean()
-                                peer_diff = abs(peer_perf - current_perf)
 
-                                if not peer_diff.empty:
-                                    best_peer = peer_diff.idxmax()
-                                    perf_gap = peer_diff.max()
+        # Strategic Peer Comparison
+        with st.expander("🔍 Strategic Peer Comparison", expanded=True):
+            if not df.empty and sid is not None:
+                try:
+                    # Get current student's start date
+                    current_data = df[df.StudentID == sid]
+                    current_start = current_data.ExamDate.min()
 
-                                    if perf_gap >= 0.2:  # Minimum 20% performance gap
-                                        st.markdown(f"#### 🎯 Comparison with Student {best_peer}")
-                                        st.caption(f"Similar start date, {perf_gap:.0%} performance difference")
+                    # Find comparable peers (started within 30 days)
+                    comparable_peers = df[
+                        (df.ExamDate > current_start - pd.Timedelta(days=30)) &
+                        (df.ExamDate < current_start + pd.Timedelta(days=30)) &
+                        (df.StudentID != sid)
+                        ].StudentID.unique()
 
-                                        # Get comparison insights
-                                        insights = progression_summary(df, sid, best_peer)
+                    if len(comparable_peers) > 0:
+                        # Calculate performance differences
+                        peer_perf = df[df.StudentID.isin(comparable_peers)].groupby('StudentID').Correct.mean()
+                        current_perf = current_data.Correct.mean()
+                        peer_diff = abs(peer_perf - current_perf)
 
-                                        # Layout
-                                        col1, col2 = st.columns([2, 3])
+                        if not peer_diff.empty:
+                            best_peer = peer_diff.idxmax()
+                            perf_gap = peer_diff.max()
 
-                                        with col1:
-                                            st.markdown("##### 📈 Key Behavioral Differences")
-                                            if len(insights) > 1:
-                                                for insight in insights[1:4]:
-                                                    st.markdown(f"""
-                                                    <div class="metric-box" style="margin-bottom:10px;">
-                                                        {insight.replace(':', '<br>').replace('(', '<br>')}
-                                                    </div>
-                                                    """, unsafe_allow_html=True)
-                                            else:
-                                                st.info("No significant behavioral differences found")
+                            if perf_gap >= 0.2:  # Minimum 20% performance gap
+                                st.markdown(f"#### 🎯 Comparison with Student {best_peer}")
+                                st.caption(f"Similar start date, {perf_gap:.0%} performance difference")
 
-                                        with col2:
-                                            st.markdown("##### 🚀 Improvement Plan")
-                                            if len(insights) >= 4:
-                                                # Visual comparison for top metric
-                                                top_metric = insights[1].split(':')[0]
-                                                s1_val = int(insights[1].split(' ')[-3])
-                                                s2_val = int(insights[1].split(' ')[-6])
+                                # Get comparison insights
+                                insights = progression_summary(df, sid, best_peer)
 
-                                                fig = go.Figure()
-                                                fig.add_trace(go.Bar(
-                                                    x=['You', f'Student {best_peer}'],
-                                                    y=[s1_val, s2_val],
-                                                    marker=dict(color=['#FFA07A', '#20B2AA']),
-                                                    text=[s1_val, s2_val],
-                                                    textposition='auto'
-                                                ))
-                                                fig.update_layout(
-                                                    title=f"{top_metric} Comparison",
-                                                    height=300,
-                                                    margin=dict(t=40, b=20)
-                                                )
-                                                st.plotly_chart(fig, use_container_width=True)
+                                # Layout
+                                col1, col2 = st.columns([2, 3])
 
-                                                # Action items
-                                                st.markdown(f"""
-                                                <div style="background-color:#E8F4FC; padding:15px; border-radius:10px;">
-                                                    <h4 style="color:#2C5F8A;">Recommended Actions</h4>
-                                                    <ul style="color:#2C5F8A;">
-                                                        <li>{insights[-1].replace('Recommendation:', '')}</li>
-                                                        <li>Review {top_metric.lower()} resources weekly</li>
-                                                        <li>Schedule 2 extra practice sessions</li>
-                                                    </ul>
-                                                </div>
-                                                """, unsafe_allow_html=True)
-                                            else:
-                                                st.warning("Insufficient data for detailed comparison")
+                                with col1:
+                                    st.markdown("##### 📈 Key Behavioral Differences")
+                                    if len(insights) > 1:
+                                        for insight in insights[1:4]:
+                                            st.markdown(f"""
+                                            <div class="metric-box" style="margin-bottom:10px;">
+                                                {insight.replace(':', '<br>').replace('(', '<br>')}
+                                            </div>
+                                            """, unsafe_allow_html=True)
                                     else:
-                                        st.info("No peers found with >20% performance gap")
-                                else:
-                                    st.warning("Could not calculate peer differences")
-                            else:
-                                st.warning("⚠️ No comparable peers found with similar start dates")
-                        except Exception as e:
-                            st.error(f"Comparison failed: {str(e)}")
-                    else:
-                        st.warning("Select a student to enable peer comparison")
+                                        st.info("No significant behavioral differences found")
 
-        # 4) Quiz Section
+                                with col2:
+                                    st.markdown("##### 🚀 Improvement Plan")
+                                    if len(insights) >= 4:
+                                        # Visual comparison for top metric
+                                        top_metric = insights[1].split(':')[0]
+                                        s1_val = int(insights[1].split(' ')[-3])
+                                        s2_val = int(insights[1].split(' ')[-6])
+
+                                        fig = go.Figure()
+                                        fig.add_trace(go.Bar(
+                                            x=['You', f'Student {best_peer}'],
+                                            y=[s1_val, s2_val],
+                                            marker=dict(color=['#FFA07A', '#20B2AA']),
+                                            text=[s1_val, s2_val],
+                                            textposition='auto'
+                                        ))
+                                        fig.update_layout(
+                                            title=f"{top_metric} Comparison",
+                                            height=300,
+                                            margin=dict(t=40, b=20)
+                                        )
+                                        st.plotly_chart(fig, use_container_width=True)
+
+                                        # Action items
+                                        st.markdown(f"""
+                                        <div style="background-color:#E8F4FC; padding:15px; border-radius:10px;">
+                                            <h4 style="color:#2C5F8A;">Recommended Actions</h4>
+                                            <ul style="color:#2C5F8A;">
+                                                <li>{insights[-1].replace('Recommendation:', '')}</li>
+                                                <li>Review {top_metric.lower()} resources weekly</li>
+                                                <li>Schedule 2 extra practice sessions</li>
+                                            </ul>
+                                        </div>
+                                        """, unsafe_allow_html=True)
+                                    else:
+                                        st.warning("Insufficient data for detailed comparison")
+                            else:
+                                st.info("No peers found with >20% performance gap")
+                        else:
+                            st.warning("Could not calculate peer differences")
+                    else:
+                        st.warning("⚠️ No comparable peers found with similar start dates")
+                except Exception as e:
+                    st.error(f"Comparison failed: {str(e)}")
+            else:
+                st.warning("Select a student to enable peer comparison")
+
+        # Quiz Section
         try:
             st.markdown('<p class="medium-font">Interactive Quiz Section</p>', unsafe_allow_html=True)
-            comp = df[(df.StudentID==sid)&(df.Completed)].Topic.unique().tolist()
+            comp = df[(df.StudentID == sid) & (df.Completed)].Topic.unique().tolist()
             quiz_topics = [t for t in comp if t in FORMULA_QUIZ_BANK]
 
             if quiz_topics:
-                c1, c2 = st.columns([1,2])
+                c1, c2 = st.columns([1, 2])
                 with c1:
                     selected_topic = st.selectbox("Select Quiz Topic", quiz_topics)
                     if st.button("Start Quiz", type="primary"):
@@ -1282,18 +1297,16 @@ def main():
                         topic = st.session_state.quiz_topic
                         st.markdown(f"### {topic} Quiz")
                         with st.form(key=f"quiz_form_{topic}"):
-                            for i,(sub,ql) in enumerate(FORMULA_QUIZ_BANK[topic].items()):
+                            for i, (sub, ql) in enumerate(FORMULA_QUIZ_BANK[topic].items()):
                                 st.subheader(f"Section: {sub}")
-                                for j,q in enumerate(ql):
+                                for j, q in enumerate(ql):
                                     q_key = f"q_{topic}_{i}_{j}"
-                                    st.markdown(f"**Q{j+1}:** {q['question']}")
-                                    if q['type']=='formula':
+                                    st.markdown(f"**Q{j + 1}:** {q['question']}")
+                                    if q['type'] == 'formula':
                                         st.text_input("Your answer:", key=q_key)
                                     else:
-                                        st.radio("Select:", ["Option A","Option B","Option C"], key=q_key)
+                                        st.radio("Select:", ["Option A", "Option B", "Option C"], key=q_key)
                                     st.markdown("---")
-
-                            # ← your updated submit logic here
                             if st.form_submit_button("Submit Quiz"):
                                 # bump the progress counter
                                 st.session_state.quiz_progress.setdefault(sid, {})[topic] = (
@@ -1412,14 +1425,12 @@ def main():
                                 st.session_state.show_practice = True
                                 st.session_state.practice_topic = topic
                                 st.session_state.practice_id = q_id
-                else:
-                    st.info("No specific question difficulties identified yet. Keep practicing!")
         except Exception as e:
             st.error(f"Question analysis error: {str(e)}")
 
     except Exception as e:
         st.error(f"Critical application error: {str(e)}")
         st.stop()
+
 if __name__ == "__main__":
     main()
-
