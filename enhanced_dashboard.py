@@ -28,19 +28,22 @@ PREREQUISITES = {
     'Chemical Bonding': ['Chemistry'],
     'Kinematics': ['Algebra'],
     'DNA Replication': ['Biology'],
-    'Gas Laws': ['Chemistry']
+    'Gas Laws': ['Chemistry'],
+    'Derivatives': ['product_rule','Chain_rule']
 }
 TOPICS = [
     'Algebra', 'Geometry', 'Calculus', 'Chemistry', 'Biology',
-    'Chemical Bonding', 'Kinematics', 'DNA Replication', 'Gas Laws'
+    'Chemical Bonding', 'Kinematics', 'DNA Replication', 'Gas Laws','Derivatives'
 ]
 SUBTOPICS = {
     'Algebra': ['Equations', 'Inequalities', 'Polynomials'],
     'Geometry': ['Angles', 'Shapes', 'Trigonometry'],
-    'Calculus': ['Limits', 'Derivatives', 'Integrals'],
+    'Calculus': ['Limits', 'Integrals'],
     'Chemistry': ['Elements', 'Reactions', 'Compounds','Chemical Bonding', 'Gas Laws'],
     'Biology': ['Cells', 'Genetics', 'Ecology', 'DNA Replication'],
-    'Physics': ['Kinematics']
+    'Physics': ['Kinematics'],
+    'Derivatives': ['Rules', 'Chain Rule', 'Applications']
+
 }
 
 # Application-level edges
