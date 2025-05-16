@@ -786,37 +786,62 @@ def apply_dual_tier_scoring(G):
 
 def update_knowledge_graph_with_quiz(G, sid, topic):
     """More impactful graph updates"""
-    responses = st.session_state.quiz_responses.get(sid, {}).get(topic, [])
+    try:
+        responses = st.session_state.quiz_responses.get(sid, {}).get(topic, [])
 
-    # Calculate concept mastery score (0-1)
-    mastery = sum(r['is_correct'] for r in responses) / max(1, len(responses))
+        # 1. Safer mastery calculation
+        total = len(responses)
+        if total == 0:
+            return
 
-    # Update node properties
-    if G.has_node(topic):
-        G.nodes[topic]['mastery'] = mastery
-        G.nodes[topic]['last_attempt'] = datetime.now().isoformat()
+        mastery = sum(1 for r in responses if r.get('is_correct', False)) / total
+        mastery = min(max(mastery, 0), 1)  # Clamp between 0-1
 
-    # Visual feedback
-    st.success(f"Updated mastery for {topic} to {mastery:.0%}")
+        # 2. Safe node updates
+        if G.has_node(topic):
+            G.nodes[topic]['mastery'] = mastery
+            G.nodes[topic]['last_attempt'] = datetime.now().isoformat()
+            st.success(f"Updated mastery for {topic} to {mastery:.0%}")
 
-    # Update subtopic connections
-    seen_subtopics = set()
-    subtopic_weights = Counter()
+        # 3. Robust subtopic processing
+        seen_subtopics = set()
+        subtopic_weights = Counter()
 
-    # Existing subtopic processing logic
-    for response in responses:
-        question = next(q for q in QUESTION_BANK[topic] if q['id'] == response['qid'])
-        for i in (1, 2, 3):
-            subtopic = question.get(f'subtopic{i}', None)
-            if subtopic:
-                subtopic_weights[subtopic] += response['is_correct']
+        for response in responses:
+            try:
+                # 4. Safe question lookup across all topics
+                question = None
+                for t in QUESTION_BANK:
+                    for q in QUESTION_BANK[t]:
+                        if q['id'] == response['qid']:
+                            question = q
+                            break
+                    if question:
+                        break
 
-    # Keep existing subtopic relationship creation
-    for subtopic, weight in subtopic_weights.most_common(2):
-        if not G.has_node(subtopic):
-            G.add_node(subtopic, type='subtopic')
-            seen_subtopics.add(subtopic)
-        G.add_edge(topic, subtopic, relation='subtopic', weight=weight)
+                if not question:
+                    st.error(f"Missing question: {response['qid']")
+                    continue
+
+                # 5. Validate subtopic fields
+                for i in (1, 2, 3):
+                    subtopic = question.get(f'subtopic{i}')
+                    if subtopic:
+                        subtopic_weights[subtopic] += int(response.get('is_correct', 0))
+
+            except Exception as e:
+                st.error(f"Error processing response: {str(e)}")
+                continue
+
+        # 6. Safe edge creation
+        for subtopic, weight in subtopic_weights.most_common(2):
+            if not G.has_node(subtopic):
+                G.add_node(subtopic, type='subtopic')
+                seen_subtopics.add(subtopic)
+            G.add_edge(topic, subtopic, relation='subtopic', weight=weight)
+
+    except Exception as e:
+        st.error(f"Knowledge graph update failed: {str(e)}")
 # ==================================================================
 # 4. Collaborative Filtering & Peer Tutoring
 # ==================================================================
@@ -1493,31 +1518,58 @@ def main():
                                             st.error("No questions available for this topic")
                                             return
 
-                                        # Process all questions
+                                        # Generate responses from form data
+                                        responses = []
                                         for sub, questions in FORMULA_QUIZ_BANK[topic].items():
                                             for q in questions:
                                                 q_key = f"q_{topic}_{q['id']}"
-
-                                                # Safely get student answer from session state
                                                 student_answer = st.session_state.get(q_key, "")
+                                                responses.append({
+                                                    "qid": q['id'],
+                                                    "answer": student_answer
+                                                })
+
+                                        # Process all responses with the new error handling
+                                        for response in responses:
+                                            try:
+                                                # Find question safely
+                                                question = None
+                                                for t in QUESTION_BANK:
+                                                    for q in QUESTION_BANK[t]:
+                                                        if q['id'] == response['qid']:
+                                                            question = q
+                                                            break
+                                                    if question:
+                                                        break
+
+                                                if not question:
+                                                    st.error(f"Missing question: {response['qid']}")
+                                                    continue
+
+                                                # Safely get student answer
+                                                student_answer = response['answer']
 
                                                 # Validate answer
-                                                is_correct, feedback = validate_answer(q, student_answer)
+                                                is_correct, feedback = validate_answer(question, student_answer)
 
                                                 # Track response
-                                                track_question_response(sid, q['id'], is_correct)
+                                                track_question_response(sid, question['id'], is_correct)
 
                                                 # Store detailed response
                                                 if topic not in st.session_state.quiz_responses[sid]:
                                                     st.session_state.quiz_responses[sid][topic] = []
 
                                                 st.session_state.quiz_responses[sid][topic].append({
-                                                    "qid": q['id'],
+                                                    "qid": question['id'],
                                                     "answer": student_answer,
                                                     "is_correct": is_correct,
                                                     "timestamp": datetime.now().isoformat(),
                                                     "feedback": feedback
                                                 })
+
+                                            except Exception as e:
+                                                st.error(f"Error processing response: {str(e)}")
+                                                continue
 
                                         # Update knowledge graph
                                         update_knowledge_graph_with_quiz(st.session_state.knowledge_graph, sid,
