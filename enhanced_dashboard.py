@@ -776,20 +776,38 @@ def apply_dual_tier_scoring(G):
 
 
 def update_knowledge_graph_with_quiz(G, sid, topic):
-    """Updates graph based on quiz performance"""
+    """More impactful graph updates"""
     responses = st.session_state.quiz_responses.get(sid, {}).get(topic, [])
 
-    # Calculate subtopic weaknesses
-    subtopic_scores = Counter()
+    # Calculate concept mastery score (0-1)
+    mastery = sum(r['is_correct'] for r in responses) / max(1, len(responses))
+
+    # Update node properties
+    if G.has_node(topic):
+        G.nodes[topic]['mastery'] = mastery
+        G.nodes[topic]['last_attempt'] = datetime.now().isoformat()
+
+    # Visual feedback
+    st.success(f"Updated mastery for {topic} to {mastery:.0%}")
+
+    # Update subtopic connections
+    seen_subtopics = set()
+    subtopic_weights = Counter()
+
+    # Existing subtopic processing logic
     for response in responses:
         question = next(q for q in QUESTION_BANK[topic] if q['id'] == response['qid'])
-        subtopic = question.get('subtopic', 'General')
-        subtopic_scores[subtopic] += response['is_correct']
+        for i in (1, 2, 3):
+            subtopic = question.get(f'subtopic{i}', None)
+            if subtopic:
+                subtopic_weights[subtopic] += response['is_correct']
 
-    # Update graph weights
-    for subtopic, score in subtopic_scores.items():
-        if G.has_edge(topic, subtopic):
-            G[topic][subtopic]['weight'] = max(1, score * 0.5)  # Adjust edge weight
+    # Keep existing subtopic relationship creation
+    for subtopic, weight in subtopic_weights.most_common(2):
+        if not G.has_node(subtopic):
+            G.add_node(subtopic, type='subtopic')
+            seen_subtopics.add(subtopic)
+        G.add_edge(topic, subtopic, relation='subtopic', weight=weight)
 # ==================================================================
 # 4. Collaborative Filtering & Peer Tutoring
 # ==================================================================
@@ -1029,10 +1047,30 @@ def get_recommendations(sid, df, G, seg, mot='High'):
 # ==================================================================
 # 7. Question‑Level Analytics
 # ==================================================================
+def track_question_response(sid, question_id, is_correct):
+    """Enhanced tracking with graph updates"""
+    if 'question_responses' not in st.session_state:
+        st.session_state.question_responses = {}
+
+    # Record response
+    student_responses = st.session_state.question_responses.setdefault(sid, {})
+    question_history = student_responses.setdefault(question_id, [])
+    question_history.append(int(is_correct))
+
+    # Update knowledge graph
+    G = st.session_state.knowledge_graph
+    for topic in QUESTION_BANK:
+        if any(q['id'] == question_id for q in QUESTION_BANK[topic]):
+            update_knowledge_graph_with_quiz(G, sid, topic)
+            break
+
+
 def analyze_item_level_performance(sid):
+    """Enhanced analysis with graph visualization"""
     if sid not in st.session_state.question_responses:
         return []
 
+    G = st.session_state.knowledge_graph
     responses = st.session_state.question_responses[sid]
     problem_questions = []
 
@@ -1044,26 +1082,33 @@ def analyze_item_level_performance(sid):
                 for topic, questions in QUESTION_BANK.items():
                     for q in questions:
                         if q['id'] == q_id:
-                            # Add solution steps to the result
+                            # Get graph connections
+                            connections = []
+                            if G.has_node(topic):
+                                edges = list(G.in_edges(topic)) + list(G.out_edges(topic))
+                                connections = [f"{s}→{t}" for s, t in edges]
+
                             problem_questions.append((
                                 q_id,
                                 q['text'],
                                 topic,
                                 success_rate,
-                                q.get('solution_steps', 'No feedback available')  # This line added
+                                q.get('solution_steps', 'No feedback available'),
+                                connections  # Add connections to output
                             ))
                             break
-                    if q_id in [q['id'] for q in questions]:  # More efficient check
+                    if q_id in [q['id'] for q in questions]:
                         break
 
-    # Sort by worst performance first
-    return sorted(problem_questions, key=lambda x: x[3])  # x[3] is success_rate
+    return sorted(problem_questions, key=lambda x: x[3])
 
 
 # ==================================================================
 # 8. Streamlit UI
 # ==================================================================
 def main():
+    if 'knowledge_graph' not in st.session_state:
+        st.session_state.knowledge_graph = nx.DiGraph()
     st.set_page_config(layout="wide", page_title="Learning Dashboard", page_icon="🧠")
 
     # Add CSS for better styling
@@ -1088,8 +1133,7 @@ def main():
     # Initialize critical variables
     sid = None
     df = pd.DataFrame()
-    G = nx.DiGraph()
-    seg = pd.DataFrame()
+    G = st.session_state.knowledge_graph
 
     try:
         with st.spinner("Loading student data..."):
@@ -1098,10 +1142,11 @@ def main():
                 st.error("No student data generated")
                 st.stop()
 
-        # Build knowledge graph
-        with st.spinner("Building knowledge graph..."):
-            G = build_knowledge_graph(PREREQUISITES, df, TOPICS)
-            G = apply_dual_tier_scoring(G)
+        # Modified graph building section
+        if not nx.nodes(st.session_state.knowledge_graph):
+            with st.spinner("Building knowledge graph..."):
+                st.session_state.knowledge_graph = build_knowledge_graph(PREREQUISITES, df, TOPICS)
+                apply_dual_tier_scoring(st.session_state.knowledge_graph)
 
         # Segment students
         with st.spinner("Analyzing student segments..."):
@@ -1477,36 +1522,26 @@ def main():
             if sid is not None:
                 problem_questions = analyze_item_level_performance(sid)
                 if problem_questions:
-                    st.warning("🔍 Questions you're struggling with:")
-                    for q_id, q_text, topic, success_rate, solution_steps in problem_questions:
-                        with st.expander(f"{topic}: {q_text} (Success: {success_rate:.0%})"):
-                            col1, col2 = st.columns([3, 1])
+                    st.subheader("Knowledge Graph Impact Analysis")
 
+                    for q in problem_questions:
+                        with st.expander(f"{q[2]}: {q[1]} (Success Rate: {q[3]:.0%})"):
+                            col1, col2 = st.columns([2, 1])
                             with col1:
-                                st.write("**Step-by-Step Solution:**")
-                                if isinstance(solution_steps, list):
-                                    for step in solution_steps:
-                                        st.write(f"→ {step}")
-                                else:
-                                    st.write(solution_steps)
-
-                                st.write("**General Study Tips:**")
-                                if topic == "Algebra":
-                                    st.write(
-                                        "- Break problem into steps\n- Check variable isolation\n- Substitute values")
-                                elif topic == "Geometry":
-                                    st.write("- Draw diagrams\n- Identify key formulas\n- Look for patterns")
-                                elif topic == "Calculus":
-                                    st.write("- Review rules\n- Simplify functions\n- Check algebra")
-                                else:
-                                    st.write("- Review concepts\n- Create visuals\n- Practice basics")
-
+                                st.markdown("**Solution Steps:**")
+                                for step in q[4]:
+                                    st.write(f"- {step}")
                             with col2:
-                                if st.button(f"🧩 Similar Question\nfor {q_id}",
-                                             help="Generate practice question on this topic"):
-                                    st.session_state.show_practice = True
-                                    st.session_state.practice_topic = topic
-                                    st.session_state.practice_id = q_id
+                                st.markdown("**Graph Connections:**")
+                                if q[5]:
+                                    for conn in q[5]:
+                                        st.write(f"`{conn}`")
+                                else:
+                                    st.write("No connections found")
+
+                                st.metric("Current Mastery",
+                                          f"{st.session_state.knowledge_graph.nodes[q[2]].get('mastery', 0):.0%}",
+                                          help="Calculated from quiz performance")
         except Exception as e:
             st.error(f"Question analysis error: {str(e)}")
 
