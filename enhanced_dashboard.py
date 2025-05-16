@@ -1126,12 +1126,22 @@ def main():
 
                         if not usage_data.empty:
                             fig = go.Figure()
+                            # Fix: Map the correct column names to their display names
+                            columns_map = {
+                                'VideosWatched': 'Videos',
+                                'QuizzesTaken': 'Quizzes',
+                                'PracticeSessions': 'Practice',
+                                'MediaClicks': 'Media'
+                            }
                             colors = {'Videos': '#1f77b4', 'Quizzes': '#ff7f0e',
                                       'Practice': '#2ca02c', 'Media': '#d62728'}
-                            for col, color in colors.items():
+
+                            for db_col, display_name in columns_map.items():
                                 fig.add_trace(go.Bar(
-                                    x=usage_data['Topic'], y=usage_data[col],
-                                    name=col, marker_color=color
+                                    x=usage_data['Topic'],
+                                    y=usage_data[db_col],
+                                    name=display_name,
+                                    marker_color=colors[display_name]
                                 ))
                             fig.update_layout(barmode='stack', height=400)
                             st.plotly_chart(fig, use_container_width=True)
