@@ -1,11 +1,9 @@
 # enhanced_dashboard_complete.py
-
 import streamlit as st
 import pandas as pd
 import numpy as np
 import networkx as nx
 import plotly.graph_objects as go
-from scipy.stats import fisher_exact
 from sklearn.linear_model import LogisticRegression
 from sklearn.cluster import KMeans
 from xgboost import XGBClassifier
@@ -14,10 +12,14 @@ from itertools import combinations
 from collections import Counter
 from datetime import datetime, timedelta
 from statsmodels.stats.contingency_tables import StratifiedTable
-
 # ==================================================================
 # 0. Configuration & Mock Data
 # ==================================================================
+PEER_TUTORS = {
+    "Algebra": ["S101", "S102", "S105"],
+    "Geometry": ["S103", "S104", "S106"],
+    "Calculus": ["S107", "S108", "S109"]
+}
 PREREQUISITES = {
     'Geometry': ['Algebra'],
     'Calculus': ['Algebra', 'Geometry'],
@@ -52,7 +54,8 @@ FORMULA_QUIZ_BANK = {
         ]
     }
 }
-QUIZ_PROGRESS = {}
+if "quiz_progress" not in st.session_state:
+    st.session_state.quiz_progress = {}
 QUESTION_BANK = {
     'Algebra': [
         {"id": "alg_1", "text": "Solve for x: 2x + 5 = 13", "difficulty": 1},
@@ -81,7 +84,8 @@ QUESTION_BANK = {
     ]
 }
 # Question response tracking
-QUESTION_RESPONSES = {}
+if "question_responses" not in st.session_state:
+    st.session_state.question_responses = {}
 
 # Recommendation dictionaries
 BRIDGE_COURSES = {
@@ -125,13 +129,7 @@ PRACTICE_QUESTIONS = {
         'fundamental': ['Life Processes', 'Scientific Method']
     }
 }
-FORMULA_QUIZ_TOPICS = {
-    'Algebra': ['Quadratic Formula', 'Factoring Patterns', 'Exponent Rules'],
-    'Geometry': ['Area/Volume Formulas', 'Trigonometric Identities', 'Circle Theorems'],
-    'Calculus': ['Derivative Rules', 'Integration Formulas', 'Series Tests'],
-    'Chemistry': ['Gas Laws', 'Equilibrium Constants', 'pH Calculations'],
-    'Biology': ['Hardy-Weinberg', 'Population Growth', 'Genetic Inheritance']
-}
+
 MEDIA_LINKS = {
     'Algebra': {
         'videos': ['https://example.com/algebra-visual', 'https://example.com/equation-solving'],
@@ -186,6 +184,57 @@ MOTIVATION_QUOTES = {
 def generate_student_data(num_students=500):
     np.random.seed(42)
     rows = []
+    # Add 3 hardwired students first
+    hardwired_students = [
+        # Student 0 (Topper)
+        {'skill': 0.95, 'mot': 'High', 'correct_rate': 0.9, 'time_factor': 0.7},
+        # Student 1 (Average)
+        {'skill': 0.65, 'mot': 'Medium', 'correct_rate': 0.6, 'time_factor': 1.0},
+        # Student 2 (Poor)
+        {'skill': 0.3, 'mot': 'Low', 'correct_rate': 0.4, 'time_factor': 1.5}
+    ]
+
+    for sid in range(3):  # First 3 students are special
+        hw = hardwired_students[sid]
+        exam_date = datetime.now() - timedelta(days=30)  # Fixed start date
+
+        # Force completion of core topics
+        done = ['Algebra', 'Geometry'] if sid == 0 else ['Algebra']
+
+        # Generate interactions for all topics
+        for topic in TOPICS:
+            for _ in range(5):  # Fixed interaction count
+                subtopics = SUBTOPICS.get(topic, [])
+                subs = (
+                    np.random.choice(subtopics, 3, replace=False)
+                    if subtopics
+                    else [None] * 3
+                )
+
+                # Force performance characteristics
+                corr = np.random.binomial(1, hw['correct_rate'])
+                tkt = max(0.1, np.random.gamma(2, 1.5) * hw['time_factor'])
+
+                rows.append({
+                    'StudentID': sid,
+                    'Topic': topic,
+                    'Subtopic1': subs[0],
+                    'Subtopic2': subs[1],
+                    'Subtopic3': subs[2],
+                    'Weight1': 0.4,
+                    'Weight2': 0.3,
+                    'Weight3': 0.3,
+                    'Correct': corr,
+                    'TimeTaken': tkt,
+                    'ExamDate': exam_date,
+                    'Completed': topic in done,
+                    'MotivationLevel': hw['mot'],
+                    'VideosWatched': 5 if sid == 0 else 3,
+                    'QuizzesTaken': 4 if sid == 0 else 1,
+                    'PracticeSessions': 6 if sid == 0 else 2,
+                    'MediaClicks': 3,
+                    'QuizProgress': 0
+                })
 
     # Validate and ensure minimum student count
     num_students = max(1, num_students)  # Ensure at least 1 student
@@ -281,7 +330,6 @@ def segment_students(df):
 
     if perf.empty:
         return pd.DataFrame(columns=['StudentID', 'acc', 'time', 'cluster', 'label'])
-
     # Robust clustering initialization
     n_clusters = min(3, max(1, len(perf)))
     kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init='auto')
@@ -296,6 +344,11 @@ def segment_students(df):
         perf['cluster'] = kmeans.fit_predict(perf[['acc', 'time']])
     except Exception as e:
         perf['cluster'] = 0
+    # MANUALLY OVERRIDE DEMO STUDENTS AFTER CLUSTERING
+    if not perf.empty:
+        perf.loc[perf.StudentID == 0, 'cluster'] = 0  # Topper
+        perf.loc[perf.StudentID == 1, 'cluster'] = 1  # Average
+        perf.loc[perf.StudentID == 2, 'cluster'] = 2  # Poor
 
     # Validation of cluster statistics
     cluster_stats = perf.groupby('cluster')['acc'].agg(['mean', 'count'])
@@ -356,42 +409,88 @@ def calculate_odds_ratio(table):
         return ((a + 0.5) * (d + 0.5)) / ((b + 0.5) * (c + 0.5))
     except Exception:
         return float('nan')
-def progression_summary(df, high_id, low_id):
-    if df.empty or high_id == low_id:
-        return ["Select different students to compare progression."]
 
-    # Ensure both IDs exist in the data
-    if high_id not in df.StudentID.unique() or low_id not in df.StudentID.unique():
-        return ["One or both selected students not found in data."]
 
-    cutoff = df.ExamDate.min() + timedelta(days=180)
-    sub = df[df.ExamDate <= cutoff]
+def progression_summary(df, student1, student2, time_tolerance=0.15, perf_gap=0.2):
+    """
+    Compare two students with:
+    - Similar start dates (±15 days)
+    - Similar total time spent (±15%)
+    - Academic performance gap >20%
+    """
+    # Get student data
+    s1_data = df[df.StudentID == student1]
+    s2_data = df[df.StudentID == student2]
 
-    # Get high performer data
-    high_data = sub[sub.StudentID == high_id]
-    if high_data.empty:
-        return [f"Student {high_id} has no data within the timeframe."]
+    # Calculate first interaction dates
+    s1_start = s1_data.ExamDate.min()
+    s2_start = s2_data.ExamDate.min()
 
-    # Get low performer data
-    low_data = sub[sub.StudentID == low_id]
-    if low_data.empty:
-        return [f"Student {low_id} has no data within the timeframe."]
+    # Calculate total time spent (in hours)
+    s1_duration = s1_data.TimeTaken.sum()
+    s2_duration = s2_data.TimeTaken.sum()
 
-    a = high_data.sum(numeric_only=True)
-    b = low_data.sum(numeric_only=True)
+    # Calculate performance metrics
+    s1_perf = s1_data.Correct.mean()
+    s2_perf = s2_data.Correct.mean()
 
-    # Calculate differences and sort
-    diff = (a - b).sort_values(ascending=False)
+    insights = []
 
-    # Filter for relevant metrics only
-    relevant_metrics = ['VideosWatched', 'QuizzesTaken', 'PracticeSessions', 'MediaClicks']
-    diff = diff[diff.index.isin(relevant_metrics)]
+    # 1. Validate time alignment
+    if abs((s1_start - s2_start).days) > 15:
+        return ["Students started more than 15 days apart - not comparable"]
 
-    insights = [f"In 6m, topper did {int(diff[i])} more {i}" for i in diff.index if diff[i] > 0]
+    # 2. Validate time investment
+    duration_ratio = abs(s1_duration - s2_duration) / max(s1_duration, s2_duration)
+    if duration_ratio > time_tolerance:
+        return [f"Time spent differs by {duration_ratio:.0%} - beyond {time_tolerance:.0%} threshold"]
 
-    # Add fallback message if no significant differences
-    if not insights:
-        insights = ["No significant difference in learning activities between the students."]
+    # 3. Validate performance gap
+    perf_diff = abs(s1_perf - s2_perf)
+    if perf_diff < perf_gap:
+        return [f"Performance difference {perf_diff:.0%} < {perf_gap:.0%} threshold"]
+
+    # Identify better performer
+    better_student = student1 if s1_perf > s2_perf else student2
+    weaker_student = student2 if better_student == student1 else student1
+
+    # Compare usage patterns
+    metrics = ['VideosWatched', 'QuizzesTaken',
+               'PracticeSessions', 'MediaClicks']
+
+    comparisons = []
+    for metric in metrics:
+        s1_val = s1_data[metric].sum()
+        s2_val = s2_data[metric].sum()
+        diff = s1_val - s2_val
+
+        comparisons.append({
+            'metric': metric,
+            'better': max(s1_val, s2_val),
+            'weaker': min(s1_val, s2_val),
+            'diff': abs(diff),
+            'direction': 'higher' if diff > 0 else 'lower'
+        })
+
+    # Sort by largest absolute differences
+    comparisons.sort(key=lambda x: x['diff'], reverse=True)
+
+    # Generate insights
+    insights.append(
+        f"🏆 Better Performer: Student {better_student} ({s1_perf if better_student == student1 else s2_perf:.0%} vs {s2_perf if better_student == student1 else s1_perf:.0%})")
+
+    for comp in comparisons[:3]:  # Top 3 differences
+        insights.append(
+            f"📊 {comp['metric']}: {comp['better']} vs {comp['weaker']} "
+            f"({comp['direction']} by {comp['diff']})"
+        )
+
+    # Add strategic recommendations
+    top_diff = comparisons[0]
+    insights.append(
+        f"🚀 Recommendation: Focus on increasing {top_diff['metric'].lower()} "
+        f"activities by {top_diff['diff']} sessions/week"
+    )
 
     return insights
 
@@ -399,22 +498,12 @@ def progression_summary(df, high_id, low_id):
 # 3. Knowledge Graph Construction
 # ==================================================================
 def build_knowledge_graph(prereqs, df, topics, OR_thresh=2.0, SHAP_thresh=0.01,
-                          min_count=20, application_relations=APPLICATION_RELATIONS):
+                              min_count=20, application_relations=None):
+    if application_relations is None:
+        application_relations = APPLICATION_RELATIONS.copy()
     """
     Constructs a knowledge graph combining prerequisite relationships, application connections,
     and statistically validated topic relationships from student performance data.
-
-    Parameters:
-    - prereqs (dict): Prerequisite relationships {topic: [prerequisites]}
-    - df (DataFrame): Student interaction data
-    - topics (list): All topics to include
-    - OR_thresh (float): Odds ratio threshold for edge creation
-    - SHAP_thresh (float): SHAP importance threshold
-    - min_count (int): Minimum student count for analysis
-    - application_relations (dict): Application topic definitions
-
-    Returns:
-    - DiGraph: Constructed knowledge graph
     """
     G = nx.DiGraph()
 
@@ -487,32 +576,49 @@ def build_knowledge_graph(prereqs, df, topics, OR_thresh=2.0, SHAP_thresh=0.01,
                     lr.fit(X[['topic_a', 'proficiency', 'time']], y)
                     or_value = np.exp(lr.coef_[0][0])
                 else:  # Stratified analysis
-                    strata = pd.qcut(X.proficiency, q=3, duplicates='drop')
-                    if len(strata.unique()) >= 2:
-                        table = StratifiedTable.from_data(X.topic_a, y, strata)
-                        or_value = table.oddsratio_pooled
+                    try:
+                        strata = pd.qcut(X.proficiency, q=3, duplicates='drop')
+                        if len(strata.unique()) >= 2:
+                            # Create contingency table
+                            contingency_table = np.array([
+                                [np.sum((X.topic_a == 1) & (y == 1)), np.sum((X.topic_a == 1) & (y == 0))],
+                                [np.sum((X.topic_a == 0) & (y == 1)), np.sum((X.topic_a == 0) & (y == 0))]
+                            ])
+                            table = StratifiedTable.from_data(
+                                var1='topic_a',
+                                var2=y.name if isinstance(y, pd.Series) else 'topic_b',
+                                strata='proficiency',
+                                data=X.assign(topic_b=y)
+                            )
+
+                            or_value = table.oddsratio_pooled
+                    except Exception as e:
+                        st.error(f"Stratified analysis failed: {str(e)}")
+                        or_value = np.nan
 
                 if or_value > OR_thresh and not np.isnan(or_value):
                     G.add_edge(topic_a, topic_b, relation='odds_ratio',
                                weight=min(or_value, 5.0))
 
-                # SHAP feature importance
-                if len(y) >= 100:
-                    xgb = XGBClassifier(use_label_encoder=False, eval_metric='logloss',
-                                        random_state=42)
-                    xgb.fit(X, y)
+                # SHAP feature importance - fixed to ensure it runs
+                if len(y) >= 100:  # Only run XGBoost on larger samples
+                    try:
+                        xgb = XGBClassifier(use_label_encoder=False, eval_metric='logloss',
+                                            random_state=42)
+                        xgb.fit(X, y)
 
-                    explainer = shap.TreeExplainer(xgb)
-                    shap_values = explainer.shap_values(X)
+                        explainer = shap.TreeExplainer(xgb)
+                        shap_values = explainer.shap_values(X)
 
-                    a_importance = np.abs(shap_values[:, 0]).mean()
-                    if a_importance > SHAP_thresh:
-                        G.add_edge(topic_a, topic_b, relation='shap_importance',
-                                   weight=min(a_importance * 10, 4.0))
+                        a_importance = np.abs(shap_values[:, 0]).mean()
+                        if a_importance > SHAP_thresh:
+                            G.add_edge(topic_a, topic_b, relation='shap_importance',
+                                       weight=min(a_importance * 10, 4.0))
+                    except Exception as e:
+                        st.error(f"SHAP analysis failed: {str(e)}")
 
             except Exception as e:
                 st.error(f"Relationship analysis failed for {topic_a}-{topic_b}: {str(e)}")
-                continue
 
     except Exception as e:
         st.error(f"Graph construction failed: {str(e)}")
@@ -528,17 +634,17 @@ def build_knowledge_graph(prereqs, df, topics, OR_thresh=2.0, SHAP_thresh=0.01,
         subtopic_weights = Counter()
         for _, row in failures.iterrows():
             for i in (1, 2, 3):
-                subtopic = row[f'Subtopic{i}']
-                weight = row[f'Weight{i}']
+                subtopic = row.get(f'Subtopic{i}')
+                weight = row.get(f'Weight{i}')
                 if pd.notna(subtopic) and pd.notna(weight):
                     subtopic_weights[subtopic] += weight
 
-        for subtopic, _ in subtopic_weights.most_common(2):
-            if subtopic not in G.nodes:
-                G.add_node(subtopic, type='subtopic')
+            for subtopic, weight in subtopic_weights.most_common(2):
+                if subtopic not in G.nodes:
+                    G.add_node(subtopic, type='subtopic')
 
-            G.add_edge(topic, subtopic, relation='subtopic',
-                       weight=min(subtopic_weights[subtopic], 5.0))
+                G.add_edge(topic, subtopic, relation='subtopic',
+                           weight=int(min(weight, 5)))
 
             # Connect to prerequisites
             for prereq in G.predecessors(topic):
@@ -554,7 +660,6 @@ def build_knowledge_graph(prereqs, df, topics, OR_thresh=2.0, SHAP_thresh=0.01,
                                relation='app_preparation', weight=2.0)
 
     return G
-
 def apply_dual_tier_scoring(G):
     """
     Applies tiered scoring to edges based on relationship type and node connectivity.
@@ -564,9 +669,9 @@ def apply_dual_tier_scoring(G):
         # Base score from relationship type
         base_scores = {
             'prereq': 3,
-            'application': 2,
+            'application': 1,
             'odds_ratio': 2,
-            'shap_importance': 1.5,
+            'shap_importance': 2.5,
             'subtopic': 1,
             'sub_prereq': 1,
             'app_preparation': 1
@@ -707,7 +812,7 @@ def get_quiz_recommendations(sid, completed):
     for t in completed:
         if t in FORMULA_QUIZ_BANK:
             # Get current progress or default to 0
-            p = QUIZ_PROGRESS.setdefault(sid, {}).get(t, 0)
+            p = st.session_state.quiz_progress.setdefault(sid, {}).get(t, 0)
             subs = list(FORMULA_QUIZ_BANK[t].keys())
 
             # Recommend next subtopic if available
@@ -829,11 +934,11 @@ def get_recommendations(sid, df, G, seg, mot='High'):
 # 7. Question‑Level Analytics
 # ==================================================================
 def analyze_item_level_performance(sid):
-    if sid not in QUESTION_RESPONSES:
+    if sid not in st.session_state.question_responses:
         return []
 
     # Get student's responses
-    responses = QUESTION_RESPONSES[sid]
+    responses = st.session_state.question_responses[sid]
 
     # Find questions with high failure rates (>50% failure)
     problem_questions = []
@@ -871,7 +976,11 @@ def main():
     .graph-container {border:1px solid #ddd; border-radius:5px; padding:10px;}
     </style>
     """, unsafe_allow_html=True)
+    if 'quiz_progress' not in st.session_state:
+        st.session_state.quiz_progress = {}
 
+    if 'question_responses' not in st.session_state:
+        st.session_state.question_responses = {}
     st.markdown('<p class="big-font">Enhanced Learning Dashboard 🧠</p>', unsafe_allow_html=True)
 
     # Initialize critical variables
@@ -881,7 +990,6 @@ def main():
     seg = pd.DataFrame()
 
     try:
-        # Generate student data
         with st.spinner("Loading student data..."):
             df = generate_student_data()
             if df.empty:
@@ -900,174 +1008,303 @@ def main():
                 st.error("Student segmentation failed")
                 st.stop()
 
-        # --- Sidebar Section ---
-        st.sidebar.markdown('<p class="medium-font">Settings</p>', unsafe_allow_html=True)
+        st.sidebar.markdown('# Settings', unsafe_allow_html=True)
 
-        # Student selection with validation
+        # demo student
         all_students = sorted(df.StudentID.unique())
-        if not all_students:
-            st.sidebar.error("No students found in data")
-            st.stop()
+        hardwired = [0, 1, 2]
+        other_students = [s for s in all_students if s not in hardwired]
 
-        sid = st.sidebar.selectbox("Select Student", all_students)
+        combined_students = hardwired + other_students
 
-        # Student tier display
+        options = [
+            f"Student {s} {'(Demo Topper)' if s == 0 else '(Demo Average)' if s == 1 else '(Demo Poor)'}"
+            if s in hardwired else f"Student {s}"
+            for s in combined_students
+        ]
+
+        # Define the format function properly
+        def format_student(student_id):
+            index = combined_students.index(student_id)
+            return options[index]
+
+        sid = st.sidebar.selectbox("Select Student", combined_students, format_func=format_student)
+
         student_info = seg[seg.StudentID == sid]
-        tier = "Unknown"
-        if not student_info.empty:
-            tier = student_info['label'].iloc[0]
-            tier_colors = {'Topper': 'green', 'Average': 'blue', 'Poor': 'red'}
-            tier_color = tier_colors.get(tier, 'gray')
-            st.sidebar.markdown(
-                f'<div style="background-color:{tier_color}20; padding:10px; border-radius:5px;">'
-                f'<strong>Performance Tier:</strong> {tier}</div>',
-                unsafe_allow_html=True
-            )
+        tier = student_info['label'].iloc[0] if not student_info.empty else 'Medium'
+        tier_colors = {'Topper': 'green', 'Average': 'blue', 'Poor': 'red'}
+        st.sidebar.markdown(
+            f"### Student Details\n"
+            f"**Performance Tier:** <span style='color:{tier_colors.get(tier, 'black')}'>{tier}</span>",
+            unsafe_allow_html=True
+        )
 
-        # --- Main Content Sections ---
-        col1, col2 = st.columns([1, 2])
+        # ── Motivation override ──
+        st.sidebar.subheader("Student Mood Tracker")
+        override_mot = st.sidebar.selectbox(
+            "Override Motivation Level",
+            ['High','Medium','Low'],
+            index=['High','Medium','Low'].index(tier),
+            key="override_mot"
+        )
+        # Force‐update our df slice for this student
+        df.loc[df.StudentID == sid, 'MotivationLevel'] = override_mot
+        # ── Peer Tutoring Section ──
+        with st.expander("🔗 Peer Tutoring Matches", expanded=False):
+            st.write("Students who complement your strengths/weaknesses:")
+            matches = suggest_peer_tutoring(sid, df, seg)
+            if matches:
+                for line in matches:
+                    st.markdown(f"- {line}")
+            else:
+                st.info("No suitable peer matches found right now.")
+                # --- Main Content Sections ---
+            col1, col2 = st.columns([1, 2])
 
-        # Knowledge Graph Visualization
-        with col1:
-            st.markdown('<p class="medium-font">Knowledge Graph</p>', unsafe_allow_html=True)
-            with st.container(height=400, border=True):
-                try:
-                    pos = nx.spring_layout(G, seed=42)
-                    edge_colors = {
-                        'prereq': '#FF0000', 'odds': '#00FF00',
-                        'shap_importance': '#0000FF', 'application': '#800080',
-                        'subtopic': '#FFA500', 'sub_prereq': '#FF69B4',
-                        'app_preparation': '#008080'
-                    }
+            # Knowledge Graph Visualization
+            with col1:
+                st.markdown('<p class="medium-font">Knowledge Graph</p>', unsafe_allow_html=True)
+                with st.container(height=400, border=True):
+                    try:
+                        pos = nx.spring_layout(G, seed=42)
+                        edge_colors = {
+                            'prereq': '#FF0000', 'odds': '#00FF00',
+                            'shap_importance': '#0000FF', 'application': '#800080',
+                            'subtopic': '#FFA500', 'sub_prereq': '#FF69B4',
+                            'app_preparation': '#008080'
+                        }
 
-                    # Create traces
-                    traces = []
-                    for rel, col in edge_colors.items():
-                        edges = [(u, v) for u, v, d in G.edges(data=True) if d.get('relation') == rel]
-                        if edges:
-                            xs, ys = [], []
-                            for u, v in edges:
-                                if u in pos and v in pos:
-                                    xs += [pos[u][0], pos[v][0], None]
-                                    ys += [pos[u][1], pos[v][1], None]
-                            traces.append(go.Scatter(x=xs, y=ys, mode='lines', line=dict(color=col, width=2), name=rel))
+                        # Create traces
+                        traces = []
+                        for rel, col in edge_colors.items():
+                            edges = [(u, v) for u, v, d in G.edges(data=True) if d.get('relation') == rel]
+                            if edges:
+                                xs, ys = [], []
+                                for u, v in edges:
+                                    if u in pos and v in pos:
+                                        xs += [pos[u][0], pos[v][0], None]
+                                        ys += [pos[u][1], pos[v][1], None]
+                                traces.append(
+                                    go.Scatter(x=xs, y=ys, mode='lines', line=dict(color=col, width=2), name=rel))
 
-                    # Node trace
-                    node_x = [pos[n][0] for n in G.nodes if n in pos]
-                    node_y = [pos[n][1] for n in G.nodes if n in pos]
-                    node_text = [n for n in G.nodes if n in pos]
+                        # Node trace
+                        node_x = [pos[n][0] for n in G.nodes if n in pos]
+                        node_y = [pos[n][1] for n in G.nodes if n in pos]
+                        node_text = [n for n in G.nodes if n in pos]
 
-                    # Node colors
-                    acc_by_topic = df[df.StudentID == sid].groupby('Topic').Correct.mean()
-                    node_colors = []
-                    for node in [n for n in G.nodes if n in pos]:
-                        perf = acc_by_topic.get(node, np.nan)
-                        if np.isnan(perf):
-                            node_colors.append('#FFA500')
-                        elif perf < 0.3:
-                            node_colors.append('#FF0000')
-                        elif perf < 0.7:
-                            node_colors.append('#FFFF00')
-                        else:
-                            node_colors.append('#00FF00')
+                        # Node colors
+                        acc_by_topic = df[df.StudentID == sid].groupby('Topic').Correct.mean()
+                        node_colors = []
+                        for node in [n for n in G.nodes if n in pos]:
+                            perf = acc_by_topic.get(node, np.nan)
+                            if np.isnan(perf):
+                                node_colors.append('#FFA500')
+                            elif perf < 0.3:
+                                node_colors.append('#FF0000')
+                            elif perf < 0.7:
+                                node_colors.append('#FFFF00')
+                            else:
+                                node_colors.append('#00FF00')
 
-                    node_trace = go.Scatter(
-                        x=node_x, y=node_y, mode='markers+text', text=node_text,
-                        marker=dict(size=15, color=node_colors, line=dict(width=1, color='#000000')),
-                        textposition="top center", name='Topics'
-                    )
+                        node_trace = go.Scatter(
+                            x=node_x, y=node_y, mode='markers+text', text=node_text,
+                            marker=dict(size=15, color=node_colors, line=dict(width=1, color='#000000')),
+                            textposition="top center", name='Topics'
+                        )
 
-                    fig = go.Figure(data=traces + [node_trace], layout=go.Layout(
-                        showlegend=False, hovermode='closest', margin=dict(b=20, l=5, r=5, t=40),
-                        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                        height=350
-                    ))
-                    st.plotly_chart(fig, use_container_width=True)
-                    st.caption("Topic colors: 🔴 Needs work | 🟡 Average | 🟢 Strong | 🟠 No data")
+                        fig = go.Figure(data=traces + [node_trace], layout=go.Layout(
+                            showlegend=False, hovermode='closest', margin=dict(b=20, l=5, r=5, t=40),
+                            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                            height=350
+                        ))
+                        st.plotly_chart(fig, use_container_width=True)
+                        st.caption("Topic colors: 🔴 Needs work | 🟡 Average | 🟢 Strong | 🟠 No data")
 
-                except Exception as e:
-                    st.error(f"Graph display error: {str(e)}")
+                    except Exception as e:
+                        st.error(f"Graph display error: {str(e)}")
 
-        # Recommendations Panel
-        with col2:
-            st.markdown('<p class="medium-font">Personalized Learning Recommendations</p>', unsafe_allow_html=True)
-            if sid is not None:
-                try:
-                    recommendations = get_recommendations(sid, df, G, seg, tier)
-                    rec_types = {
-                        "🚧 Bridge": [], "🧠 HOTS": [], "📚 Practice": [],
-                        "📝 Quiz": [], "🎥 Media": [], "🔗 Analogy": [],
-                        "📊 Formula": [], "🔧 Subtopics": [], "🔄 Apply": [],
-                        "👍 Easy Win": [], "💭 Quote": []
-                    }
+            # Recommendations Panel
+            with col2:
+                st.markdown('<p class="medium-font">Personalized Learning Recommendations</p>', unsafe_allow_html=True)
+                if sid is not None:
+                    try:
+                        recommendations = get_recommendations(sid, df, G, seg, tier)
+                        rec_types = {
+                            "🚧 Bridge": [], "🧠 HOTS": [], "📚 Practice": [],
+                            "📝 Quiz": [], "🎥 Media": [], "🔗 Analogy": [],
+                            "📊 Formula": [], "🔧 Subtopics": [], "🔄 Apply": [],
+                            "👍 Easy Win": [], "💭 Quote": []
+                        }
 
-                    for rec in recommendations:
-                        for prefix in rec_types:
-                            if rec.startswith(prefix):
-                                rec_types[prefix].append(rec)
-                                break
+                        for rec in recommendations:
+                            for prefix in rec_types:
+                                if rec.startswith(prefix):
+                                    rec_types[prefix].append(rec)
+                                    break
 
-                    cols = st.columns(3)
-                    with cols[0]:
-                        st.markdown("### Study Plan")
-                        for rec in rec_types["🚧 Bridge"] + rec_types["📚 Practice"] + rec_types["📊 Formula"]:
-                            st.info(rec)
-                    with cols[1]:
-                        st.markdown("### Challenges")
-                        for rec in rec_types["🧠 HOTS"] + rec_types["📝 Quiz"] + rec_types["🔧 Subtopics"]:
-                            st.success(rec)
-                    with cols[2]:
-                        st.markdown("### Engagement")
-                        for rec in rec_types["💭 Quote"]:
-                            st.markdown(
-                                f'<div style="background-color:#f0f7fb; padding:10px; border-radius:5px;">{rec}</div>',
-                                unsafe_allow_html=True)
-                        for rec in rec_types["🎥 Media"] + rec_types["🔗 Analogy"] + rec_types["🔄 Apply"] + rec_types[
-                            "👍 Easy Win"]:
-                            st.warning(rec)
-                except Exception as e:
-                    st.error(f"Recommendation error: {str(e)}")
+                        cols = st.columns(3)
+                        with cols[0]:
+                            st.markdown("### Study Plan")
+                            for rec in rec_types["🚧 Bridge"] + rec_types["📚 Practice"] + rec_types["📊 Formula"]:
+                                st.info(rec)
+                        with cols[1]:
+                            st.markdown("### Challenges")
+                            for rec in rec_types["🧠 HOTS"] + rec_types["📝 Quiz"] + rec_types["🔧 Subtopics"]:
+                                st.success(rec)
+                        with cols[2]:
+                            st.markdown("### Engagement")
+                            for rec in rec_types["💭 Quote"]:
+                                st.markdown(
+                                    f'<div style="background-color:#f0f7fb; padding:10px; border-radius:5px;">{rec}</div>',
+                                    unsafe_allow_html=True)
+                            for rec in rec_types["🎥 Media"] + rec_types["🔗 Analogy"] + rec_types["🔄 Apply"] + rec_types[
+                                "👍 Easy Win"]:
+                                st.warning(rec)
+                    except Exception as e:
+                        st.error(f"Recommendation error: {str(e)}")
+            # ==================================================================
+            # Strategic Peer Comparison Section in main()
+            # ==================================================================
+            with st.expander("🔍 Strategic Peer Comparison", expanded=True):
+                    if not df.empty and sid is not None:
+                        try:
+                            # Get current student's start date
+                            current_data = df[df.StudentID == sid]
+                            current_start = current_data.ExamDate.min()
 
-        # Quiz Section
+                            # Find comparable peers (started within 30 days)
+                            comparable_peers = df[
+                                (df.ExamDate > current_start - pd.Timedelta(days=30)) &
+                                (df.ExamDate < current_start + pd.Timedelta(days=30)) &
+                                (df.StudentID != sid)
+                                ].StudentID.unique()
+
+                            if len(comparable_peers) > 0:
+                                # Calculate performance differences
+                                peer_perf = df[df.StudentID.isin(comparable_peers)].groupby('StudentID').Correct.mean()
+                                current_perf = current_data.Correct.mean()
+                                peer_diff = abs(peer_perf - current_perf)
+
+                                if not peer_diff.empty:
+                                    best_peer = peer_diff.idxmax()
+                                    perf_gap = peer_diff.max()
+
+                                    if perf_gap >= 0.2:  # Minimum 20% performance gap
+                                        st.markdown(f"#### 🎯 Comparison with Student {best_peer}")
+                                        st.caption(f"Similar start date, {perf_gap:.0%} performance difference")
+
+                                        # Get comparison insights
+                                        insights = progression_summary(df, sid, best_peer)
+
+                                        # Layout
+                                        col1, col2 = st.columns([2, 3])
+
+                                        with col1:
+                                            st.markdown("##### 📈 Key Behavioral Differences")
+                                            if len(insights) > 1:
+                                                for insight in insights[1:4]:
+                                                    st.markdown(f"""
+                                                    <div class="metric-box" style="margin-bottom:10px;">
+                                                        {insight.replace(':', '<br>').replace('(', '<br>')}
+                                                    </div>
+                                                    """, unsafe_allow_html=True)
+                                            else:
+                                                st.info("No significant behavioral differences found")
+
+                                        with col2:
+                                            st.markdown("##### 🚀 Improvement Plan")
+                                            if len(insights) >= 4:
+                                                # Visual comparison for top metric
+                                                top_metric = insights[1].split(':')[0]
+                                                s1_val = int(insights[1].split(' ')[-3])
+                                                s2_val = int(insights[1].split(' ')[-6])
+
+                                                fig = go.Figure()
+                                                fig.add_trace(go.Bar(
+                                                    x=['You', f'Student {best_peer}'],
+                                                    y=[s1_val, s2_val],
+                                                    marker=dict(color=['#FFA07A', '#20B2AA']),
+                                                    text=[s1_val, s2_val],
+                                                    textposition='auto'
+                                                ))
+                                                fig.update_layout(
+                                                    title=f"{top_metric} Comparison",
+                                                    height=300,
+                                                    margin=dict(t=40, b=20)
+                                                )
+                                                st.plotly_chart(fig, use_container_width=True)
+
+                                                # Action items
+                                                st.markdown(f"""
+                                                <div style="background-color:#E8F4FC; padding:15px; border-radius:10px;">
+                                                    <h4 style="color:#2C5F8A;">Recommended Actions</h4>
+                                                    <ul style="color:#2C5F8A;">
+                                                        <li>{insights[-1].replace('Recommendation:', '')}</li>
+                                                        <li>Review {top_metric.lower()} resources weekly</li>
+                                                        <li>Schedule 2 extra practice sessions</li>
+                                                    </ul>
+                                                </div>
+                                                """, unsafe_allow_html=True)
+                                            else:
+                                                st.warning("Insufficient data for detailed comparison")
+                                    else:
+                                        st.info("No peers found with >20% performance gap")
+                                else:
+                                    st.warning("Could not calculate peer differences")
+                            else:
+                                st.warning("⚠️ No comparable peers found with similar start dates")
+                        except Exception as e:
+                            st.error(f"Comparison failed: {str(e)}")
+                    else:
+                        st.warning("Select a student to enable peer comparison")
+
+        # 4) Quiz Section
         try:
             st.markdown('<p class="medium-font">Interactive Quiz Section</p>', unsafe_allow_html=True)
-            if sid is not None:
-                comp = df[(df.StudentID == sid) & (df.Completed)].Topic.unique().tolist()
-                quiz_topics = [t for t in comp if t in FORMULA_QUIZ_BANK]
+            comp = df[(df.StudentID==sid)&(df.Completed)].Topic.unique().tolist()
+            quiz_topics = [t for t in comp if t in FORMULA_QUIZ_BANK]
 
-                if quiz_topics:
-                    col1, col2 = st.columns([1, 2])
-                    with col1:
-                        selected_topic = st.selectbox("Select Quiz Topic", quiz_topics)
-                        if st.button("Start Quiz", type="primary"):
-                            st.session_state.show_quiz = True
-                            st.session_state.quiz_topic = selected_topic
-                            st.session_state.quiz_answers = {}
+            if quiz_topics:
+                c1, c2 = st.columns([1,2])
+                with c1:
+                    selected_topic = st.selectbox("Select Quiz Topic", quiz_topics)
+                    if st.button("Start Quiz", type="primary"):
+                        st.session_state.show_quiz = True
+                        st.session_state.quiz_topic = selected_topic
+                        st.session_state.quiz_answers = {}
 
-                    with col2:
-                        if st.session_state.get('show_quiz'):
-                            topic = st.session_state.quiz_topic
-                            st.markdown(f"### {topic} Quiz")
-                            with st.form(key=f"quiz_form_{topic}"):
-                                for i, (sub, ql) in enumerate(FORMULA_QUIZ_BANK[topic].items()):
-                                    st.subheader(f"Section: {sub}")
-                                    for j, q in enumerate(ql):
-                                        q_key = f"q_{topic}_{i}_{j}"
-                                        st.markdown(f"**Q{j + 1}:** {q['question']}")
-                                        if q['type'] == 'formula':
-                                            answer = st.text_input("Your answer:", key=q_key)
-                                        else:
-                                            answer = st.radio("Select:", ["Option A", "Option B", "Option C"],
-                                                              key=q_key)
-                                        st.markdown("---")
+                with c2:
+                    if st.session_state.get('show_quiz'):
+                        topic = st.session_state.quiz_topic
+                        st.markdown(f"### {topic} Quiz")
+                        with st.form(key=f"quiz_form_{topic}"):
+                            for i,(sub,ql) in enumerate(FORMULA_QUIZ_BANK[topic].items()):
+                                st.subheader(f"Section: {sub}")
+                                for j,q in enumerate(ql):
+                                    q_key = f"q_{topic}_{i}_{j}"
+                                    st.markdown(f"**Q{j+1}:** {q['question']}")
+                                    if q['type']=='formula':
+                                        st.text_input("Your answer:", key=q_key)
+                                    else:
+                                        st.radio("Select:", ["Option A","Option B","Option C"], key=q_key)
+                                    st.markdown("---")
 
-                                if st.form_submit_button("Submit Quiz"):
-                                    QUIZ_PROGRESS.setdefault(sid, {})[topic] = QUIZ_PROGRESS.get(sid, {}).get(topic,
-                                                                                                              0) + 1
-                                    st.success("Quiz submitted successfully!")
-                else:
-                    st.info("Complete some topics to unlock quizzes!")
+                            # ← your updated submit logic here
+                            if st.form_submit_button("Submit Quiz"):
+                                # bump the progress counter
+                                st.session_state.quiz_progress.setdefault(sid, {})[topic] = (
+                                        st.session_state.quiz_progress.get(sid, {}).get(topic, 0) + 1
+                                )
+
+                                # ── Persist to session & global history ──
+                                st.session_state.setdefault('quiz_responses', {}) \
+                                    .setdefault(sid, {})[topic] = st.session_state.quiz_answers
+                            st.session_state.question_responses.update(st.session_state['quiz_responses'][sid])
+
+                            st.success("Quiz submitted successfully!")
+            else:
+                st.info("Complete some topics to unlock quizzes!")
         except Exception as e:
             st.error(f"Quiz error: {str(e)}")
 
@@ -1089,7 +1326,7 @@ def main():
                             fig = go.Figure(go.Bar(
                                 x=topic_perf['Topic'], y=topic_perf['Accuracy'],
                                 text=[f"{acc:.1%}" for acc in topic_perf['Accuracy']],
-                                marker_color='green'
+                                marker=dict(color='green')
                             ))
                             fig.update_layout(
                                 title='Topic Performance',
@@ -1180,7 +1417,6 @@ def main():
     except Exception as e:
         st.error(f"Critical application error: {str(e)}")
         st.stop()
-
-
 if __name__ == "__main__":
     main()
+
