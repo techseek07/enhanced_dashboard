@@ -1,6 +1,5 @@
-# enhanced_dashboard_improved.py
-from statsmodels.stats.contingency_tables import StratifiedTable
-from sklearn.linear_model import LogisticRegression
+# enhanced_dashboard_complete.py
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -14,6 +13,7 @@ import shap
 from itertools import combinations
 from collections import Counter
 from datetime import datetime, timedelta
+from statsmodels.stats.contingency_tables import StratifiedTable
 
 # ==================================================================
 # 0. Configuration & Mock Data
@@ -80,7 +80,6 @@ QUESTION_BANK = {
         {"id": "bio_3", "text": "Calculate Hardy-Weinberg equilibrium for a population", "difficulty": 3}
     ]
 }
-
 # Question response tracking
 QUESTION_RESPONSES = {}
 
@@ -180,10 +179,8 @@ MOTIVATION_QUOTES = {
     'Chemistry': "Chemistry is the bridge between physics of atoms and life.",
     'Biology': "Biology is the most powerful technology ever created. DNA is software, proteins are hardware."
 }
-
-
 # ==================================================================
-# 1. Data Generation (with usage & quiz‑progress)
+# 1. Data Generation
 # ==================================================================
 @st.cache_data
 def generate_student_data(num_students=500):
@@ -323,7 +320,6 @@ def segment_students(df):
     perf['label'] = perf['cluster'].map(label_map).fillna('Unknown')
     return perf
 
-
 def recommend_topper_resources(seg, df):
     # Return empty list if no data
     if seg.empty or df.empty:
@@ -350,7 +346,6 @@ def recommend_topper_resources(seg, df):
     top3 = topper_means.head(3)
     return [f"Top performers average {v:.1f} {k}" for k, v in top3.items()]
 
-
 def calculate_odds_ratio(table):
     """Calculate odds ratio from a 2x2 contingency table."""
     try:
@@ -361,8 +356,6 @@ def calculate_odds_ratio(table):
         return ((a + 0.5) * (d + 0.5)) / ((b + 0.5) * (c + 0.5))
     except Exception:
         return float('nan')
-
-
 def progression_summary(df, high_id, low_id):
     if df.empty or high_id == low_id:
         return ["Select different students to compare progression."]
@@ -401,7 +394,6 @@ def progression_summary(df, high_id, low_id):
         insights = ["No significant difference in learning activities between the students."]
 
     return insights
-
 
 # ==================================================================
 # 3. Knowledge Graph Construction
@@ -563,6 +555,43 @@ def build_knowledge_graph(prereqs, df, topics, OR_thresh=2.0, SHAP_thresh=0.01,
 
     return G
 
+def apply_dual_tier_scoring(G):
+    """
+    Applies tiered scoring to edges based on relationship type and node connectivity.
+    Maintains original tier logic as it effectively captures edge importance.
+    """
+    for source, target, data in G.edges(data=True):
+        # Base score from relationship type
+        base_scores = {
+            'prereq': 3,
+            'application': 2,
+            'odds_ratio': 2,
+            'shap_importance': 1.5,
+            'subtopic': 1,
+            'sub_prereq': 1,
+            'app_preparation': 1
+        }
+        score = base_scores.get(data.get('relation', 'other'), 1)
+
+        # Bonus for important nodes (number of incoming edges)
+        incoming_edges = len([e for e in G.in_edges(target) if e[0] != source])
+        bonus = min(2, incoming_edges)
+
+        # Tier assignment
+        total = score + bonus
+        if total >= 4:
+            data['tier'] = 1
+        elif total >= 2:
+            data['tier'] = 2
+        else:
+            data['tier'] = 3  # Lowest priority tier
+
+    return G
+
+
+# ==================================================================
+# 4. Collaborative Filtering & Peer Tutoring
+# ==================================================================
 def collaborative_filtering_recommendations(sid, df, seg):
     """Use collaborative filtering to recommend questions based on similar students"""
     # Skip if not enough data
@@ -612,9 +641,6 @@ def collaborative_filtering_recommendations(sid, df, seg):
                 recommendations.append(f"👥 Similar students do well with: {topic} - {q['text']}")
 
     return recommendations
-
-
-
 def suggest_peer_tutoring(sid, df, seg):
     """Match students who can help each other based on complementary strengths/weaknesses"""
     if df.empty or seg.empty:
@@ -671,43 +697,8 @@ def suggest_peer_tutoring(sid, df, seg):
 
     return []
 
-
-def apply_dual_tier_scoring(G):
-    """
-    Applies tiered scoring to edges based on relationship type and node connectivity.
-    Maintains original tier logic as it effectively captures edge importance.
-    """
-    for source, target, data in G.edges(data=True):
-        # Base score from relationship type
-        base_scores = {
-            'prereq': 3,
-            'application': 2,
-            'odds_ratio': 2,
-            'shap_importance': 1.5,
-            'subtopic': 1,
-            'sub_prereq': 1,
-            'app_preparation': 1
-        }
-        score = base_scores.get(data.get('relation', 'other'), 1)
-
-        # Bonus for important nodes (number of incoming edges)
-        incoming_edges = len([e for e in G.in_edges(target) if e[0] != source])
-        bonus = min(2, incoming_edges)
-
-        # Tier assignment
-        total = score + bonus
-        if total >= 4:
-            data['tier'] = 1
-        elif total >= 2:
-            data['tier'] = 2
-        else:
-            data['tier'] = 3  # Lowest priority tier
-
-    return G
-
-
 # ==================================================================
-# 4. Quiz Recommendation
+# 5. Quiz Helpers
 # ==================================================================
 def get_quiz_recommendations(sid, completed):
     rec = []
@@ -725,11 +716,10 @@ def get_quiz_recommendations(sid, completed):
 
     return rec
 
-
 # ==================================================================
-# 5. Comprehensive Recommendations
+# 6. Comprehensive Recommendations
 # ==================================================================
-def get_recommendations(sid, df, G,seg, mot='High'):
+def get_recommendations(sid, df, G, seg, mot='High'):
     # Handle empty dataframe
     if df.empty:
         return ["No student data available for recommendations."]
@@ -747,13 +737,13 @@ def get_recommendations(sid, df, G,seg, mot='High'):
 
     rec = []
 
-    # Add motivation quote based on student's topics
+    # 1) Add a motivation quote
     if comp:
         selected_topic = np.random.choice(comp)
         if selected_topic in MOTIVATION_QUOTES:
             rec.append(f"💭 \"{MOTIVATION_QUOTES[selected_topic]}\"")
 
-    # Bridge course recommendations for struggling topics
+    # 2) Bridge course recommendations for low‐accuracy topics
     low_topics = acc[acc < 0.3].index.tolist()
     for t in low_topics:
         if t in BRIDGE_COURSES:
@@ -761,77 +751,83 @@ def get_recommendations(sid, df, G,seg, mot='High'):
         else:
             rec.append(f"🚧 Bridge: {t}")
 
-    # HOTS (Higher Order Thinking Skills) for high-performing topics
+    # 3) HOTS for high‐accuracy topics (unless motivation is Low)
     if mot != 'Low':
         high_topics = acc[acc > 0.7].index.tolist()
-        for t in high_topics[:2]:  # Limit to 2 topics to avoid overwhelming
+        for t in high_topics[:2]:
             if t in HOTS_QUESTIONS:
                 rec.append(f"🧠 HOTS {t}: {', '.join(HOTS_QUESTIONS[t][:2])}")
 
-    # Practice recommendations
-    for t in comp[:3]:  # Limit to 3 topics
+    # 4) Practice recommendations for up to 3 completed topics
+    for t in comp[:3]:
         if t in PRACTICE_QUESTIONS:
             pq = PRACTICE_QUESTIONS[t]
             seq = pq.get('recent', []) + pq.get('historical', []) + pq.get('fundamental', [])
             rec.append(f"📚 Practice {t}: {', '.join(seq[:3])}")
 
-    # Quiz recommendations
+    # 5) Quiz recommendations
     quiz_recs = get_quiz_recommendations(sid, comp)
-    rec.extend(quiz_recs[:2])  # Limit to 2 quiz recommendations
+    rec.extend(quiz_recs[:2])
 
-    # Media/Analogy recommendations - provide analogies for all difficult topics
+    # 6) Media & analogies
     hard_topics = acc[acc < 0.5].index.tolist()
-
-    # First add videos for completed topics
-    for t in comp[:2]:  # Limit to 2 topics
+    # first, videos for up to 2 completed topics
+    for t in comp[:2]:
         m = MEDIA_LINKS.get(t, {})
         if m.get('videos'):
             rec.append(f"🎥 {t}: {', '.join(m['videos'][:1])}")
-
-    # Always provide analogies for hard topics regardless of motivation
+    # then, analogies for all “hard” topics
     for t in hard_topics:
         m = MEDIA_LINKS.get(t, {})
         if m.get('analogies'):
             rec.append(f"🔗 Analogy for {t}: {m['analogies']}")
-    # Formula revision materials for low-performing topics
+
+    # 7) Formula revision materials for low‐performing topics
     for t in low_topics[:2]:
         if t in FORMULA_REVISION:
             rec.append(f"📊 Formula Help {t}: {', '.join(FORMULA_REVISION[t][:2])}")
 
-    # Easy topics for motivation
+    # 8) Easy‐win topics if motivation is Low
     if mot == 'Low' and comp:
         easy_topic = np.random.choice(comp)
         if easy_topic in EASY_TOPICS:
             rec.append(f"👍 Easy Win: {easy_topic} - {EASY_TOPICS[easy_topic][0]}")
 
-        # Subtopic & application recommendations from knowledge graph
-    for t in comp:  # Check all completed topics for applications
-        # Get subtopics that need focus
+    # 9) Subtopic & application recommendations per completed topic
+    for t in comp:
+        # a) subtopics that need focus (only for low topics)
         if t in low_topics:
-            subs = [v for u, v, d in G.out_edges(t, data=True)
-                    if d.get('relation') == 'topic_sub_top']
+            subs = [
+                v for _, v, d in G.out_edges(t, data=True)
+                if d.get('relation') == 'subtopic'
+            ]
             if subs:
                 rec.append(f"🔧 Subtopics to review in {t}: {', '.join(subs[:3])}")
-        # Add collaborative filtering recommendations
+
+        # b) collaborative filtering suggestions
         collab_recs = collaborative_filtering_recommendations(sid, df, seg)
         rec.extend(collab_recs)
 
-        # For all completed topics, find applications and future topics
-        # Find topics that this one is prerequisite for
-        future_topics = [v for u, v, d in G.out_edges(t, data=True)
-                         if d.get('relation') == 'prereq' or d.get('relation') == 'odds']
-
-        # Find direct applications
-        apps = [v for u, v, d in G.out_edges(t, data=True)
-                if d.get('relation') == 'app_connection' or d.get('relation') == 'application']
-
+        # c) “future” topics (prereqs or odds_ratio)
+        future_topics = [
+            v for _, v, d in G.out_edges(t, data=True)
+            if d.get('relation') in ('prereq', 'odds_ratio')
+        ]
         if future_topics:
             rec.append(f"🔄 Apply {t} in: {', '.join(future_topics[:2])}")
 
+        # d) direct applications
+        apps = [
+            v for _, v, d in G.out_edges(t, data=True)
+            if d.get('relation') in ('app_preparation', 'application')
+        ]
         if apps:
             rec.append(f"🔬 Real applications of {t}: {', '.join(apps[:2])}")
+    return rec
 
-
+# ==================================================================
+# 7. Question‑Level Analytics
+# ==================================================================
 def analyze_item_level_performance(sid):
     if sid not in QUESTION_RESPONSES:
         return []
@@ -858,8 +854,9 @@ def analyze_item_level_performance(sid):
 
     return problem_questions
 
+
 # ==================================================================
-# 6. Streamlit UI (with quizzes)
+# 8. Streamlit UI
 # ==================================================================
 def main():
     st.set_page_config(layout="wide", page_title="Learning Dashboard", page_icon="🧠")
