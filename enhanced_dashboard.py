@@ -26,7 +26,8 @@ PREREQUISITES = {
     'Chemistry': ['Algebra'],
     'Biology': ['Chemistry']
 }
-TOPICS = ['Algebra', 'Geometry', 'Calculus', 'Chemistry', 'Biology']
+TOPICS = ['Algebra', 'Geometry', 'Calculus', 'Chemistry', 'Biology',
+         'Kinematics', 'DNA Replication', 'Gas Laws']
 SUBTOPICS = {
     'Algebra': ['Equations', 'Inequalities', 'Polynomials'],
     'Geometry': ['Angles', 'Shapes', 'Trigonometry'],
@@ -37,20 +38,220 @@ SUBTOPICS = {
 
 # Application-level edges
 APPLICATION_RELATIONS = {
+    # Original entries
     'Biomolecules': {'base_topic': 'Chemical Bonding', 'type': 'application'},
-    'Optimization': {'base_topic': 'Derivatives', 'type': 'application'}
+    'Optimization': {'base_topic': 'Derivatives', 'type': 'application'},
+
+    # New additions
+    'Projectile Motion': {
+        'base_topic': 'Kinematics',
+        'type': 'application',
+        'description': 'Application of kinematic equations to parabolic trajectories'
+    },
+    'Genetic Engineering': {
+        'base_topic': 'DNA Replication',
+        'type': 'application',
+        'description': 'Practical applications of DNA manipulation techniques'
+    },
+    'Economic Modeling': {
+        'base_topic': 'Derivatives',
+        'type': 'application',
+        'description': 'Using calculus to model market trends and optimization'
+    },
+    'Greenhouse Effect': {
+        'base_topic': 'Gas Laws',
+        'type': 'application',
+        'description': 'Application of gas behavior principles to atmospheric science'
+    }
 }
 
-# Quiz bank & progress tracking
 FORMULA_QUIZ_BANK = {
-    'Calculus': {
-        'Derivative Rules': [
-            {"question": "d/dx(sin x) = ?", "type": "formula"},
-            {"question": "Product rule formula?", "type": "definition"}
+    'Algebra': {
+        'Quadratic Formula': [
+            {
+                "id": "alg_q1",
+                "question": "The quadratic formula for ax² + bx + c = 0 is?",
+                "type": "formula",
+                "answer": "x = (-b ± √(b² - 4ac)) / 2a",
+                "solution_steps": ["Recall the standard form of a quadratic equation and the derivation of the formula."]
+            },
+            {
+                "id": "alg_q2",
+                "question": "What is the discriminant of a quadratic equation and what does it indicate about the roots?",
+                "type": "definition",
+                "answer": "Discriminant = b² - 4ac. If > 0, two real roots; if = 0, one real root; if < 0, two complex roots.",
+                "solution_steps": ["Define the discriminant and explain its relationship to the nature of the roots."]
+            }
         ],
+        'Logarithm Properties': [
+            {
+                "id": "alg_q3",
+                "question": "State the product rule of logarithms: log_b(mn) = ?",
+                "type": "formula",
+                "answer": "log_b(m) + log_b(n)",
+                "solution_steps": ["Recall the property that relates the logarithm of a product to the sum of logarithms."]
+            },
+            {
+                "id": "alg_q4",
+                "question": "State the power rule of logarithms: log_b(m^n) = ?",
+                "type": "formula",
+                "answer": "n * log_b(m)",
+                "solution_steps": ["Recall the property that allows the exponent inside a logarithm to be brought out as a multiplier."]
+            }
+        ]
+    },
+    'Calculus': {
         'Integration Formulas': [
-            {"question": "∫e^x dx = ?", "type": "formula"},
-            {"question": "Integration by parts formula?", "type": "definition"}
+            {
+                "id": "calc_q3",
+                "question": "∫sin(x) dx = ?",
+                "type": "formula",
+                "answer": "-cos(x) + C",
+                "solution_steps": ["Recall the integral of the sine function."]
+            },
+            {
+                "id": "calc_q4",
+                "question": "Formula for integration by substitution?",
+                "type": "definition",
+                "answer": "∫f(g(x))g'(x) dx = ∫f(u) du, where u = g(x)",
+                "solution_steps": ["State the method for simplifying integrals by changing the variable."]
+            }
+        ]
+    },
+    'Chemistry': {
+        'Gas Laws': [
+            {
+                "id": "chem_q1",
+                "question": "State Boyle's Law.",
+                "type": "definition",
+                "answer": "For a fixed amount of gas at constant temperature, the pressure is inversely proportional to the volume (P₁V₁ = P₂V₂).",
+                "solution_steps": ["Recall the relationship between pressure and volume of a gas at constant temperature."]
+            },
+            {
+                "id": "chem_q2",
+                "question": "The Ideal Gas Law formula is?",
+                "type": "formula",
+                "answer": "PV = nRT",
+                "solution_steps": ["Recall the equation relating pressure, volume, number of moles, ideal gas constant, and temperature."]
+            }
+        ],
+        'Chemical Formulas': [
+            {
+                "id": "chem_q3",
+                "question": "The chemical formula for water is?",
+                "type": "formula",
+                "answer": "H₂O",
+                "solution_steps": ["Recall the standard chemical formula for water."]
+            },
+            {
+                "id": "chem_q4",
+                "question": "The chemical formula for glucose is?",
+                "type": "formula",
+                "answer": "C₆H₁₂O₆",
+                "solution_steps": ["Recall the standard chemical formula for glucose."]
+            }
+        ]
+    },
+    'Biology': {
+        'Cell Biology Formulas': [
+            {
+                "id": "bio_q1",
+                "question": "What is the formula for calculating magnification of a microscope?",
+                "type": "formula",
+                "answer": "Total Magnification = Magnification of Eyepiece Lens × Magnification of Objective Lens",
+                "solution_steps": ["Recall how the magnifying powers of different lenses in a microscope combine."]
+            },
+            {
+                "id": "bio_q2",
+                "question": "What is the formula for calculating the growth rate of a population?",
+                "type": "formula",
+                "answer": "Growth Rate (r) = (Births - Deaths) / Initial Population",
+                "solution_steps": ["Recall the basic factors that influence population growth."]
+            }
+        ],
+        'Genetics Formulas': [
+            {
+                "id": "bio_q3",
+                "question": "In Hardy-Weinberg equilibrium, what does the equation p + q = 1 represent?",
+                "type": "definition",
+                "answer": "It represents the sum of the frequencies of the two alleles for a particular trait in a population.",
+                "solution_steps": ["Recall the basic principle of allele frequencies in a population."]
+            },
+            {
+                "id": "bio_q4",
+                "question": "In Hardy-Weinberg equilibrium, what does the equation p² + 2pq + q² = 1 represent?",
+                "type": "definition",
+                "answer": "It represents the sum of the frequencies of the homozygous dominant (p²), heterozygous (2pq), and homozygous recessive (q²) genotypes in a population.",
+                "solution_steps": ["Recall how allele frequencies relate to genotype frequencies under Hardy-Weinberg equilibrium."]
+            }
+        ],
+        'Photosynthesis Formulas': [
+            {
+                "id": "bio_q5",
+                "question": "What is the overall balanced chemical equation for photosynthesis?",
+                "type": "formula",
+                "answer": "6CO₂ + 6H₂O + Light Energy → C₆H₁₂O₆ + 6O₂",
+                "solution_steps": ["Recall the reactants and products of the photosynthesis process."]
+            }
+        ],
+        'Respiration Formulas': [
+            {
+                "id": "bio_q6",
+                "question": "What is the overall balanced chemical equation for aerobic respiration?",
+                "type": "formula",
+                "answer": "C₆H₁₂O₆ + 6O₂ → 6CO₂ + 6H₂O + Energy (ATP)",
+                "solution_steps": ["Recall the reactants and products of the aerobic respiration process."]
+            }
+        ]
+    },
+    'Physics': {
+        'Kinematics Formulas': [
+            {
+                "id": "phy_q1",
+                "question": "State the first equation of motion.",
+                "type": "formula",
+                "answer": "v = u + at",
+                "solution_steps": ["Recall the relationship between final velocity, initial velocity, acceleration, and time."]
+            },
+            {
+                "id": "phy_q2",
+                "question": "State the second equation of motion.",
+                "type": "formula",
+                "answer": "s = ut + (1/2)at²",
+                "solution_steps": ["Recall the relationship between displacement, initial velocity, acceleration, and time."]
+            },
+            {
+                "id": "phy_q3",
+                "question": "State the third equation of motion.",
+                "type": "formula",
+                "answer": "v² = u² + 2as",
+                "solution_steps": ["Recall the relationship between final velocity, initial velocity, acceleration, and displacement."]
+            }
+        ],
+        'Newton\'s Laws of Motion': [
+            {
+                "id": "phy_q4",
+                "question": "State Newton's second law of motion.",
+                "type": "definition",
+                "answer": "The acceleration of an object is directly proportional to the net force acting on the object and inversely proportional to its mass (F = ma).",
+                "solution_steps": ["Recall the relationship between force, mass, and acceleration."]
+            }
+        ],
+        'Optics Formulas': [
+            {
+                "id": "phy_q5",
+                "question": "The lens formula is?",
+                "type": "formula",
+                "answer": "1/f = 1/v - 1/u",
+                "solution_steps": ["Recall the relationship between focal length, image distance, and object distance for a lens."]
+            },
+            {
+                "id": "phy_q6",
+                "question": "The formula for magnification (m) produced by a lens is?",
+                "type": "formula",
+                "answer": "m = v/u",
+                "solution_steps": ["Recall the relationship between image height/distance and object height/distance."]
+            }
         ]
     }
 }
@@ -58,29 +259,146 @@ if "quiz_progress" not in st.session_state:
     st.session_state.quiz_progress = {}
 QUESTION_BANK = {
     'Algebra': [
-        {"id": "alg_1", "text": "Solve for x: 2x + 5 = 13", "difficulty": 1},
-        {"id": "alg_2", "text": "Factor: x² - 9", "difficulty": 2},
-        {"id": "alg_3", "text": "Solve the system: 2x + y = 7, x - y = 1", "difficulty": 3}
+        {
+            "id": "alg_1",
+            "text": "Solve for x: 2x + 5 = 13",
+            "difficulty": 1,
+            "type": "free_response",
+            "answer": "4",
+            "solution_steps": ["Subtract 5 from both sides: 2x = 8", "Divide by 2: x = 4"]
+        },
+        {
+            "id": "alg_2",
+            "text": "Factor: x² - 9",
+            "difficulty": 2,
+            "type": "multiple_choice",
+            "options": ["(x+3)(x-3)", "(x+3)²", "(x-3)²", "Prime"],
+            "correct_option": 0
+        },
+        {
+            "id": "alg_3",
+            "text": "Solve the system: 2x + y = 7, x - y = 1",
+            "difficulty": 3,
+            "type": "free_response",
+            "answer": "x=2, y=3",
+            "solution_steps": ["Add the two equations: 3x = 9 => x = 3", "Substitute x in the second equation: 3 - y = 1 => y = 2"]
+        }
     ],
     'Geometry': [
-        {"id": "geo_1", "text": "Find the area of a circle with radius 5", "difficulty": 1},
-        {"id": "geo_2", "text": "Prove triangles ABC and DEF are similar", "difficulty": 3},
-        {"id": "geo_3", "text": "Calculate the volume of a cone with height 6 and radius 2", "difficulty": 2}
+        {
+            "id": "geo_1",
+            "text": "Find the area of a circle with radius 5",
+            "difficulty": 1,
+            "type": "free_response",
+            "answer": "78.54",
+            "solution_steps": ["Area of a circle = πr²", "Substitute r = 5: Area = π(5)² = 25π ≈ 78.54"]
+        },
+        {
+            "id": "geo_2",
+            "text": "Prove triangles ABC and DEF are similar",
+            "difficulty": 3,
+            "type": "essay",
+            "answer_guidance": "Students should provide logical steps and justifications based on similarity postulates (e.g., AA, SAS, SSS).",
+            "rubric": {
+                "Understanding of Similarity": 2,
+                "Correct Application of Postulates": 3,
+                "Logical Reasoning": 3,
+                "Clarity of Explanation": 2
+            }
+        },
+        {
+            "id": "geo_3",
+            "text": "Calculate the volume of a cone with height 6 and radius 2",
+            "difficulty": 2,
+            "type": "free_response",
+            "answer": "25.13",
+            "solution_steps": ["Volume of a cone = (1/3)πr²h", "Substitute r = 2 and h = 6: Volume = (1/3)π(2)²(6) = 8π ≈ 25.13"]
+        }
     ],
     'Calculus': [
-        {"id": "calc_1", "text": "Find the derivative of f(x) = x³ + 2x²", "difficulty": 2},
-        {"id": "calc_2", "text": "Evaluate ∫(2x + 1)dx from 0 to 3", "difficulty": 2},
-        {"id": "calc_3", "text": "Find the inflection points of f(x) = x³ - 6x²", "difficulty": 3}
+        {
+            "id": "calc_1",
+            "text": "Find the derivative of f(x) = x³ + 2x²",
+            "difficulty": 2,
+            "type": "free_response",
+            "answer": "3x² + 4x",
+            "solution_steps": ["Apply the power rule: d/dx(xⁿ) = nxⁿ⁻¹", "d/dx(x³) = 3x²", "d/dx(2x²) = 4x", "So, f'(x) = 3x² + 4x"]
+        },
+        {
+            "id": "calc_2",
+            "text": "Evaluate ∫(2x + 1)dx from 0 to 3",
+            "difficulty": 2,
+            "type": "free_response",
+            "answer": "12",
+            "solution_steps": ["Find the antiderivative: ∫(2x + 1)dx = x² + x + C", "Evaluate at the limits: [(3)² + (3)] - [(0)² + (0)] = (9 + 3) - 0 = 12"]
+        },
+        {
+            "id": "calc_3",
+            "text": "Find the inflection points of f(x) = x³ - 6x²",
+            "difficulty": 3,
+            "type": "free_response",
+            "answer": "x = 2",
+            "solution_steps": ["Find the second derivative: f'(x) = 3x² - 12x, f''(x) = 6x - 12", "Set the second derivative to zero: 6x - 12 = 0 => x = 2", "Check the concavity change around x = 2"]
+        }
     ],
     'Chemistry': [
-        {"id": "chem_1", "text": "Balance: H₂ + O₂ → H₂O", "difficulty": 1},
-        {"id": "chem_2", "text": "Calculate pH of 0.01M HCl solution", "difficulty": 2},
-        {"id": "chem_3", "text": "Draw the Lewis structure for CO₂", "difficulty": 2}
+        {
+            "id": "chem_1",
+            "text": "Balance: H₂ + O₂ → H₂O",
+            "difficulty": 1,
+            "type": "free_response",
+            "answer": "2H₂ + O₂ → 2H₂O",
+            "solution_steps": ["Count the number of atoms of each element on both sides.", "Adjust coefficients to balance the number of atoms."]
+        },
+        {
+            "id": "chem_2",
+            "text": "Calculate pH of 0.01M HCl solution",
+            "difficulty": 2,
+            "type": "free_response",
+            "answer": "2",
+            "solution_steps": ["HCl is a strong acid, so [H⁺] = concentration of HCl = 0.01M = 10⁻² M", "pH = -log₁₀[H⁺] = -log₁₀(10⁻²) = 2"]
+        },
+        {
+            "id": "chem_3",
+            "text": "Draw the Lewis structure for CO₂",
+            "difficulty": 2,
+            "type": "drawing",
+            "answer_guidance": "Students should depict a central carbon atom double-bonded to two oxygen atoms, with lone pairs on the oxygen atoms.",
+            "elements": ["C", "O"],
+            "bonds": ["double", "double"],
+            "lone_pairs": {"O": 4}
+        }
     ],
     'Biology': [
-        {"id": "bio_1", "text": "List the phases of mitosis in order", "difficulty": 1},
-        {"id": "bio_2", "text": "Explain how DNA replication works", "difficulty": 2},
-        {"id": "bio_3", "text": "Calculate Hardy-Weinberg equilibrium for a population", "difficulty": 3}
+        {
+            "id": "bio_1",
+            "text": "List the phases of mitosis in order",
+            "difficulty": 1,
+            "type": "ordering",
+            "options": ["Prophase", "Metaphase", "Anaphase", "Telophase"],
+            "correct_order": [0, 1, 2, 3]
+        },
+        {
+            "id": "bio_2",
+            "text": "Explain how DNA replication works",
+            "difficulty": 2,
+            "type": "essay",
+            "answer_guidance": "Students should describe the roles of enzymes like helicase and polymerase, the concept of semi-conservative replication, and the directionality of synthesis.",
+            "rubric": {
+                "Identification of Key Enzymes": 2,
+                "Explanation of Semi-Conservative Nature": 3,
+                "Understanding of Directionality": 2,
+                "Overall Clarity and Coherence": 3
+            }
+        },
+        {
+            "id": "bio_3",
+            "text": "Calculate Hardy-Weinberg equilibrium for a population with allele frequencies p = 0.6 and q = 0.4 for a gene with two alleles.",
+            "difficulty": 3,
+            "type": "free_response",
+            "answer": "p² = 0.36, 2pq = 0.48, q² = 0.16",
+            "solution_steps": ["Hardy-Weinberg equations: p² + 2pq + q² = 1", "p² represents the frequency of the homozygous dominant genotype: (0.6)² = 0.36", "2pq represents the frequency of the heterozygous genotype: 2 * (0.6) * (0.4) = 0.48", "q² represents the frequency of the homozygous recessive genotype: (0.4)² = 0.16"]
+        }
     ]
 }
 # Question response tracking
@@ -189,9 +507,9 @@ def generate_student_data(num_students=500):
         # Student 0 (Topper)
         {'skill': 0.95, 'mot': 'High', 'correct_rate': 0.9, 'time_factor': 0.7},
         # Student 1 (Average)
-        {'skill': 0.65, 'mot': 'Medium', 'correct_rate': 0.6, 'time_factor': 1.0},
+        {'skill': 0.65, 'mot': 'Medium', 'correct_rate': 0.58, 'time_factor': 1.0},
         # Student 2 (Poor)
-        {'skill': 0.3, 'mot': 'Low', 'correct_rate': 0.4, 'time_factor': 1.5}
+        {'skill': 0.25, 'mot': 'Low', 'correct_rate': 0.35, 'time_factor': 1.5}
     ]
 
     for sid in range(3):  # First 3 students are special
@@ -319,6 +637,18 @@ def generate_student_data(num_students=500):
 
     return pd.DataFrame(rows)
 
+
+def validate_answer(question, student_answer):
+    """Returns (is_correct, feedback) tuple"""
+    if question['type'] == 'free_response':
+        correct = student_answer.strip() == question['answer']
+        return correct, f"Solution: {question['solution_steps']}"
+
+    elif question['type'] == 'multiple_choice':
+        correct = student_answer == question['correct_option']
+        return correct, f"Correct answer: {question['options'][question['correct_option']]}"
+
+    return False, "Unknown question type"
 # ==================================================================
 # 2. Student Segmentation & Peer Insights
 # ==================================================================
@@ -330,58 +660,62 @@ def segment_students(df):
 
     if perf.empty:
         return pd.DataFrame(columns=['StudentID', 'acc', 'time', 'cluster', 'label'])
+
     # Robust clustering initialization
     n_clusters = min(3, max(1, len(perf)))
     kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init='auto')
 
-    # Handle single-point edge case
+    # Handle edge cases
     if len(perf) == 1:
-        perf['cluster'] = 0
-        perf['label'] = 'Average'
-        return perf
+        return pd.DataFrame({
+            'StudentID': perf.StudentID,
+            'acc': perf.acc,
+            'time': perf.time,
+            'cluster': [0],
+            'label': ['Average']
+        })
 
     try:
         perf['cluster'] = kmeans.fit_predict(perf[['acc', 'time']])
     except Exception as e:
         perf['cluster'] = 0
-        # MANUALLY OVERRIDE DEMO STUDENTS AFTER CLUSTERING
-    if not perf.empty:
-        # Assign clusters based on performance
-        perf.loc[perf.StudentID == 0, 'cluster'] = 0  # Topper cluster
-        perf.loc[perf.StudentID == 1, 'cluster'] = 1  # Average cluster
-        perf.loc[perf.StudentID == 2, 'cluster'] = 2  # Poor cluster
 
-        # DIRECT LABEL MAPPING FOR DEMO STUDENTS
-    label_map = {
-        0: 'Topper',
-        1: 'Average',
-        2: 'Poor'
+    # Hard-coded demo student configuration
+    demo_mapping = {
+        0: ('Topper', 0),
+        1: ('Average', 1),
+        2: ('Poor', 2)
     }
-    perf['label'] = perf['cluster'].map(label_map)
 
-    # Validation of cluster statistics
-    cluster_stats = perf.groupby('cluster')['acc'].agg(['mean', 'count'])
-    valid_clusters = cluster_stats[cluster_stats['mean'] > 0]  # Filter zero-acc clusters
+    # Assign clusters and labels for demo students
+    for sid, (label, cluster) in demo_mapping.items():
+        if sid in perf.StudentID.values:
+            perf.loc[perf.StudentID == sid, 'cluster'] = cluster
+            perf.loc[perf.StudentID == sid, 'label'] = label
 
-    if valid_clusters.empty:
-        perf['label'] = 'Needs Help'
-        return perf
+    # Label non-demo students using clustering results
+    non_demo = perf[~perf.StudentID.isin([0, 1, 2])]
+    if not non_demo.empty:
+        cluster_stats = non_demo.groupby('cluster')['acc'].agg(['mean', 'count'])
+        valid_clusters = cluster_stats[cluster_stats['mean'] > 0]
 
-    # Stable sorting with secondary key
-    ranked_clusters = valid_clusters.sort_values(
-        ['mean', 'count'],
-        ascending=[False, False]
-    ).reset_index()
+        if not valid_clusters.empty:
+            ranked_clusters = valid_clusters.sort_values(
+                ['mean', 'count'],
+                ascending=[False, False]
+            ).reset_index()
 
-    # Dynamic labeling
-    label_map = {}
-    for i, row in ranked_clusters.iterrows():
-        label = ['Topper', 'Average', 'Poor'][i] if i < 3 else 'Unknown'
-        label_map[row['cluster']] = label
+            cluster_label_map = {
+                row['cluster']: ['Topper', 'Average', 'Poor'][i]
+                for i, row in ranked_clusters.iterrows()
+                if i < 3
+            }
 
-    perf['label'] = perf['cluster'].map(label_map).fillna('Unknown')
-    return perf
+            perf.loc[non_demo.index, 'label'] = non_demo['cluster'].map(
+                lambda x: cluster_label_map.get(x, 'Needs Help')
+            )
 
+    return perf.fillna({'label': 'Needs Help'})
 def recommend_topper_resources(seg, df):
     # Return empty list if no data
     if seg.empty or df.empty:
@@ -446,7 +780,7 @@ def progression_summary(df, student1, student2, time_tolerance=0.15, perf_gap=0.
     insights = []
 
     # 1. Validate time alignment
-    if abs((s1_start - s2_start).days) > 15:
+    if abs((s1_start - s2_start).days) > 40:
         return ["Students started more than 15 days apart - not comparable"]
 
     # 2. Validate time investment
@@ -703,6 +1037,21 @@ def apply_dual_tier_scoring(G):
     return G
 
 
+def update_knowledge_graph_with_quiz(G, sid, topic):
+    """Updates graph based on quiz performance"""
+    responses = st.session_state.quiz_responses.get(sid, {}).get(topic, [])
+
+    # Calculate subtopic weaknesses
+    subtopic_scores = Counter()
+    for response in responses:
+        question = next(q for q in QUESTION_BANK[topic] if q['id'] == response['qid'])
+        subtopic = question.get('subtopic', 'General')
+        subtopic_scores[subtopic] += response['is_correct']
+
+    # Update graph weights
+    for subtopic, score in subtopic_scores.items():
+        if G.has_edge(topic, subtopic):
+            G[topic][subtopic]['weight'] = max(1, score * 0.5)  # Adjust edge weight
 # ==================================================================
 # 4. Collaborative Filtering & Peer Tutoring
 # ==================================================================
@@ -889,12 +1238,12 @@ def get_recommendations(sid, df, G, seg, mot='High'):
     for t in comp[:2]:
         m = MEDIA_LINKS.get(t, {})
         if m.get('videos'):
-            rec.append(f"🎥 {t}: {', '.join(m['videos'][:1])}")
-    # then, analogies for all “hard” topics
+            rec.append(f"🎥 Media: {', '.join(m['videos'][:1])}")
+            # then, analogies for all “hard” topics
     for t in hard_topics:
         m = MEDIA_LINKS.get(t, {})
         if m.get('analogies'):
-            rec.append(f"🔗 Analogy for {t}: {m['analogies']}")
+            rec.append(f"🔗 Analogy: {m['analogies']}")
 
     # 7) Formula revision materials for low‐performing topics
     for t in low_topics[:2]:
@@ -946,32 +1295,33 @@ def analyze_item_level_performance(sid):
     if sid not in st.session_state.question_responses:
         return []
 
-    # Get student's responses
     responses = st.session_state.question_responses[sid]
-
-    # Find questions with high failure rates (>50% failure)
     problem_questions = []
+
     for q_id, attempts in responses.items():
-        if len(attempts) >= 2:  # Only consider questions with multiple attempts
+        if len(attempts) >= 2:
             success_rate = sum(attempts) / len(attempts)
-            if success_rate < 0.5:  # More than 50% failure
-                # Find the question text
-                q_text = None
+            if success_rate < 0.5:
+                # Find question details
                 for topic, questions in QUESTION_BANK.items():
                     for q in questions:
                         if q['id'] == q_id:
-                            q_text = q['text']
-                            problem_questions.append((q_id, q_text, topic, success_rate))
+                            # Add solution steps to the result
+                            problem_questions.append((
+                                q_id,
+                                q['text'],
+                                topic,
+                                success_rate,
+                                q.get('solution_steps', 'No feedback available')  # This line added
+                            ))
                             break
-                    if q_text:
+                    if q_id in [q['id'] for q in questions]:  # More efficient check
                         break
 
-    return problem_questions
+    # Sort by worst performance first
+    return sorted(problem_questions, key=lambda x: x[3])  # x[3] is success_rate
 
 
-# ==================================================================
-# 8. Streamlit UI
-# ==================================================================
 # ==================================================================
 # 8. Streamlit UI
 # ==================================================================
@@ -979,15 +1329,16 @@ def main():
     st.set_page_config(layout="wide", page_title="Learning Dashboard", page_icon="🧠")
 
     # Add CSS for better styling
-    st.markdown("""
-    <style>
-    .big-font {font-size:24px !important; font-weight:bold;}
-    .medium-font {font-size:18px !important;}
-    .highlight {background-color:#f0f2f6; padding:10px; border-radius:5px;}
-    .recommendation {margin-bottom:10px; padding:5px;}
-    .graph-container {border:1px solid #ddd; border-radius:5px; padding:10px;}
-    </style>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        """
+        <style>
+        .big-font {font-size:24px !important; font-weight:bold;}
+        .medium-font {font-size:18px !important;}
+        .highlight {background-color:#f0f2f6; padding:10px; border-radius:5px;}
+        .recommendation {margin-bottom:10px; padding:5px;}
+        .graph-container {border:1px solid #ddd; border-radius:5px; padding:10px;}
+        </style>
+        """, unsafe_allow_html=True)
 
     if 'quiz_progress' not in st.session_state:
         st.session_state.quiz_progress = {}
@@ -1068,7 +1419,7 @@ def main():
         mood_options = ['High', 'Medium', 'Low']
         default_idx = mood_options.index(current_mot)
         override_mot = st.sidebar.selectbox(
-            " Motivation Level",
+            "Override Motivation Level",
             mood_options,
             index=default_idx,
             key="override_mot"
@@ -1100,8 +1451,6 @@ def main():
                         'subtopic': '#FFA500', 'sub_prereq': '#FF69B4',
                         'app_preparation': '#008080'
                     }
-
-                    # Create traces
                     traces = []
                     for rel, col in edge_colors.items():
                         edges = [(u, v) for u, v, d in G.edges(data=True) if d.get('relation') == rel]
@@ -1112,17 +1461,14 @@ def main():
                                     xs += [pos[u][0], pos[v][0], None]
                                     ys += [pos[u][1], pos[v][1], None]
                             traces.append(
-                                go.Scatter(x=xs, y=ys, mode='lines', line=dict(color=col, width=2), name=rel))
-
-                    # Node trace
+                                go.Scatter(x=xs, y=ys, mode='lines', line=dict(color=col, width=2), name=rel)
+                            )
                     node_x = [pos[n][0] for n in G.nodes if n in pos]
                     node_y = [pos[n][1] for n in G.nodes if n in pos]
                     node_text = [n for n in G.nodes if n in pos]
-
-                    # Node colors
                     acc_by_topic = df[df.StudentID == sid].groupby('Topic').Correct.mean()
                     node_colors = []
-                    for node in [n for n in G.nodes if n in pos]:
+                    for node in node_text:
                         perf = acc_by_topic.get(node, np.nan)
                         if np.isnan(perf):
                             node_colors.append('#FFA500')
@@ -1132,13 +1478,11 @@ def main():
                             node_colors.append('#FFFF00')
                         else:
                             node_colors.append('#00FF00')
-
                     node_trace = go.Scatter(
                         x=node_x, y=node_y, mode='markers+text', text=node_text,
                         marker=dict(size=15, color=node_colors, line=dict(width=1, color='#000000')),
                         textposition="top center", name='Topics'
                     )
-
                     fig = go.Figure(data=traces + [node_trace], layout=go.Layout(
                         showlegend=False, hovermode='closest', margin=dict(b=20, l=5, r=5, t=40),
                         xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
@@ -1147,7 +1491,6 @@ def main():
                     ))
                     st.plotly_chart(fig, use_container_width=True)
                     st.caption("Topic colors: 🔴 Needs work | 🟡 Average | 🟢 Strong | 🟠 No data")
-
                 except Exception as e:
                     st.error(f"Graph display error: {str(e)}")
 
@@ -1159,124 +1502,83 @@ def main():
                     recommendations = get_recommendations(sid, df, G, seg, override_mot)
                     rec_types = {
                         "🚧 Bridge": [], "🧠 HOTS": [], "📚 Practice": [],
-                        "📝 Quiz": [], "🎥 Media": [], "🔗 Analogy": [],
+                        "📝 Quiz": [],  "🎥 Media": [],  "🔗 Analogy": [],
                         "📊 Formula": [], "🔧 Subtopics": [], "🔄 Apply": [],
                         "👍 Easy Win": [], "💭 Quote": []
                     }
-
-                    for rec in recommendations:
+                    for r in recommendations:
                         for prefix in rec_types:
-                            if rec.startswith(prefix):
-                                rec_types[prefix].append(rec)
+                            if r.startswith(prefix):
+                                rec_types[prefix].append(r)
                                 break
-
                     cols = st.columns(3)
                     with cols[0]:
                         st.markdown("### Study Plan")
-                        for rec in rec_types["🚧 Bridge"] + rec_types["📚 Practice"] + rec_types["📊 Formula"]:
-                            st.info(rec)
+                        for item in rec_types["🚧 Bridge"] + rec_types["📚 Practice"] + rec_types["📊 Formula"]:
+                            st.info(item)
                     with cols[1]:
                         st.markdown("### Challenges")
-                        for rec in rec_types["🧠 HOTS"] + rec_types["📝 Quiz"] + rec_types["🔧 Subtopics"]:
-                            st.success(rec)
+                        for item in rec_types["🧠 HOTS"] + rec_types["📝 Quiz"] + rec_types["🔧 Subtopics"]:
+                            st.success(item)
                     with cols[2]:
                         st.markdown("### Engagement")
-                        for rec in rec_types["💭 Quote"]:
-                            st.markdown(
-                                f'<div style="background-color:#f0f7fb; padding:10px; border-radius:5px;">{rec}</div>',
-                                unsafe_allow_html=True)
-                        for rec in rec_types["🎥 Media"] + rec_types["🔗 Analogy"] + rec_types["🔄 Apply"] + rec_types[
-                            "👍 Easy Win"]:
-                            st.warning(rec)
+                        for item in rec_types["💭 Quote"]:
+                            st.markdown(f'<div class="highlight">{item}</div>', unsafe_allow_html=True)
+                        for item in rec_types["🎥 Media"] + rec_types["🔗 Analogy"] + rec_types["🔄 Apply"] + rec_types["👍 Easy Win"]:
+                            st.warning(item)
                 except Exception as e:
                     st.error(f"Recommendation error: {str(e)}")
-
 
         # Strategic Peer Comparison
         with st.expander("🔍 Strategic Peer Comparison", expanded=True):
             if not df.empty and sid is not None:
                 try:
-                    # Get current student's start date
                     current_data = df[df.StudentID == sid]
                     current_start = current_data.ExamDate.min()
-
-                    # Find comparable peers (started within 30 days)
                     comparable_peers = df[
-                        (df.ExamDate > current_start - pd.Timedelta(days=30)) &
-                        (df.ExamDate < current_start + pd.Timedelta(days=30)) &
+                        (df.ExamDate > current_start - pd.Timedelta(days=60)) &
+                        (df.ExamDate < current_start + pd.Timedelta(days=60)) &
                         (df.StudentID != sid)
-                        ].StudentID.unique()
-
+                    ].StudentID.unique()
                     if len(comparable_peers) > 0:
-                        # Calculate performance differences
                         peer_perf = df[df.StudentID.isin(comparable_peers)].groupby('StudentID').Correct.mean()
                         current_perf = current_data.Correct.mean()
                         peer_diff = abs(peer_perf - current_perf)
-
                         if not peer_diff.empty:
                             best_peer = peer_diff.idxmax()
                             perf_gap = peer_diff.max()
-
-                            if perf_gap >= 0.2:  # Minimum 20% performance gap
+                            if perf_gap >= 0.15:
                                 st.markdown(f"#### 🎯 Comparison with Student {best_peer}")
                                 st.caption(f"Similar start date, {perf_gap:.0%} performance difference")
-
-                                # Get comparison insights
                                 insights = progression_summary(df, sid, best_peer)
-
-                                # Layout
                                 col1, col2 = st.columns([2, 3])
-
                                 with col1:
                                     st.markdown("##### 📈 Key Behavioral Differences")
                                     if len(insights) > 1:
                                         for insight in insights[1:4]:
-                                            st.markdown(f"""
-                                            <div class="metric-box" style="margin-bottom:10px;">
-                                                {insight.replace(':', '<br>').replace('(', '<br>')}
-                                            </div>
-                                            """, unsafe_allow_html=True)
+                                            st.markdown(f"<div class='highlight'>{insight}</div>", unsafe_allow_html=True)
                                     else:
                                         st.info("No significant behavioral differences found")
-
                                 with col2:
                                     st.markdown("##### 🚀 Improvement Plan")
                                     if len(insights) >= 4:
-                                        # Visual comparison for top metric
                                         top_metric = insights[1].split(':')[0]
                                         s1_val = int(insights[1].split(' ')[-3])
                                         s2_val = int(insights[1].split(' ')[-6])
-
                                         fig = go.Figure()
                                         fig.add_trace(go.Bar(
                                             x=['You', f'Student {best_peer}'],
                                             y=[s1_val, s2_val],
-                                            marker=dict(color=['#FFA07A', '#20B2AA']),
                                             text=[s1_val, s2_val],
                                             textposition='auto'
                                         ))
-                                        fig.update_layout(
-                                            title=f"{top_metric} Comparison",
-                                            height=300,
-                                            margin=dict(t=40, b=20)
-                                        )
+                                        fig.update_layout(title=f"{top_metric} Comparison", height=300)
                                         st.plotly_chart(fig, use_container_width=True)
-
-                                        # Action items
-                                        st.markdown(f"""
-                                        <div style="background-color:#E8F4FC; padding:15px; border-radius:10px;">
-                                            <h4 style="color:#2C5F8A;">Recommended Actions</h4>
-                                            <ul style="color:#2C5F8A;">
-                                                <li>{insights[-1].replace('Recommendation:', '')}</li>
-                                                <li>Review {top_metric.lower()} resources weekly</li>
-                                                <li>Schedule 2 extra practice sessions</li>
-                                            </ul>
-                                        </div>
-                                        """, unsafe_allow_html=True)
+                                        st.markdown(f"<div class='highlight'>{insights[-1]}</div>", unsafe_allow_html=True)
                                     else:
                                         st.warning("Insufficient data for detailed comparison")
                             else:
-                                st.info("No peers found with >20% performance gap")
+                                st.info("No peers found with >=15% performance gap")
                         else:
                             st.warning("Could not calculate peer differences")
                     else:
@@ -1287,11 +1589,10 @@ def main():
                 st.warning("Select a student to enable peer comparison")
 
         # Quiz Section
+        st.markdown('<p class="medium-font">Interactive Quiz Section</p>', unsafe_allow_html=True)
         try:
-            st.markdown('<p class="medium-font">Interactive Quiz Section</p>', unsafe_allow_html=True)
             comp = df[(df.StudentID == sid) & (df.Completed)].Topic.unique().tolist()
             quiz_topics = [t for t in comp if t in FORMULA_QUIZ_BANK]
-
             if quiz_topics:
                 c1, c2 = st.columns([1, 2])
                 with c1:
@@ -1300,7 +1601,6 @@ def main():
                         st.session_state.show_quiz = True
                         st.session_state.quiz_topic = selected_topic
                         st.session_state.quiz_answers = {}
-
                 with c2:
                     if st.session_state.get('show_quiz'):
                         topic = st.session_state.quiz_topic
@@ -1310,37 +1610,60 @@ def main():
                                 st.subheader(f"Section: {sub}")
                                 for j, q in enumerate(ql):
                                     q_key = f"q_{topic}_{i}_{j}"
-                                    st.markdown(f"**Q{j + 1}:** {q['question']}")
+                                    st.markdown(f"**Q{j+1}:** {q['question']}")
                                     if q['type'] == 'formula':
                                         st.text_input("Your answer:", key=q_key)
                                     else:
                                         st.radio("Select:", ["Option A", "Option B", "Option C"], key=q_key)
                                     st.markdown("---")
                             if st.form_submit_button("Submit Quiz"):
-                                # bump the progress counter
-                                st.session_state.quiz_progress.setdefault(sid, {})[topic] = (
-                                        st.session_state.quiz_progress.get(sid, {}).get(topic, 0) + 1
-                                )
+                                try:
+                                    # Get full question objects from bank
+                                    topic_questions = FORMULA_QUIZ_BANK[topic]
+                                    all_questions = [q for sublist in topic_questions.values() for q in sublist]
 
-                                # ── Persist to session & global history ──
-                                st.session_state.setdefault('quiz_responses', {}) \
-                                    .setdefault(sid, {})[topic] = st.session_state.quiz_answers
-                            st.session_state.question_responses.update(st.session_state['quiz_responses'][sid])
+                                    # Initialize tracking structures
+                                    st.session_state.setdefault('quiz_responses', {}).setdefault(sid, {})
+                                    st.session_state.setdefault('question_responses', {}).setdefault(sid, {})
 
-                            st.success("Quiz submitted successfully!")
-            else:
-                st.info("Complete some topics to unlock quizzes!")
+                                    # Process each question
+                                    for i, question in enumerate(all_questions):
+                                        qid = question['id']
+                                        student_answer = st.session_state[f"q_{topic}_{i}"]
+
+                                        # Validate answer
+                                        is_correct, feedback = validate_answer(question, student_answer)
+
+                                        # Update progress tracking
+                                        st.session_state.question_responses[sid].setdefault(qid, []).append(
+                                            int(is_correct))
+
+                                        # Store full response details
+                                        st.session_state.quiz_responses[sid].setdefault(topic, []).append({
+                                            "qid": qid,
+                                            "answer": student_answer,
+                                            "is_correct": is_correct,
+                                            "timestamp": datetime.now(),
+                                            "feedback": feedback
+                                        })
+
+                                    # Update knowledge graph
+                                    update_knowledge_graph_with_quiz(G, sid, topic)
+
+                                    st.success("Quiz submitted successfully! Recommendations will update accordingly.")
+
+                                except Exception as e:
+                                    st.error(f"Quiz error: {str(e)}")
         except Exception as e:
-            st.error(f"Quiz error: {str(e)}")
+            st.error(f"Quiz section error: {str(e)}")
 
         # Performance Analytics
+        st.markdown('<p class="medium-font">Performance Analytics</p>', unsafe_allow_html=True)
         try:
-            st.markdown('<p class="medium-font">Performance Analytics</p>', unsafe_allow_html=True)
             if sid is not None:
                 student_data = df[df.StudentID == sid]
                 if not student_data.empty:
                     tab1, tab2, tab3 = st.tabs(["Topic Performance", "Time Analysis", "Usage Patterns"])
-
                     with tab1:
                         topic_perf = student_data.groupby('Topic').agg(
                             Accuracy=('Correct', 'mean'),
@@ -1388,7 +1711,7 @@ def main():
 
                         if not usage_data.empty:
                             fig = go.Figure()
-                            # Fix: Map the correct column names to their display names
+                            # Map the correct column names to their display names
                             columns_map = {
                                 'VideosWatched': 'Videos',
                                 'QuizzesTaken': 'Quizzes',
@@ -1411,35 +1734,47 @@ def main():
             st.error(f"Analytics error: {str(e)}")
 
         # Question-Level Analytics
+        st.markdown('<p class="medium-font">Question-Level Analytics</p>', unsafe_allow_html=True)
         try:
-            st.markdown('<p class="medium-font">Question-Level Analytics</p>', unsafe_allow_html=True)
             if sid is not None:
                 problem_questions = analyze_item_level_performance(sid)
                 if problem_questions:
                     st.warning("🔍 Questions you're struggling with:")
-                    for q_id, q_text, topic, success_rate in problem_questions:
+                    for q_id, q_text, topic, success_rate, solution_steps in problem_questions:
                         with st.expander(f"{topic}: {q_text} (Success: {success_rate:.0%})"):
-                            st.write("**Suggested micro-lesson:**")
-                            if topic == "Algebra":
-                                st.write(
-                                    "- Break the problem into steps\n- Check variable isolation\n- Substitute values")
-                            elif topic == "Geometry":
-                                st.write("- Draw diagrams\n- Identify key formulas\n- Look for patterns")
-                            elif topic == "Calculus":
-                                st.write("- Review rules\n- Simplify functions\n- Check algebra")
-                            else:
-                                st.write("- Review concepts\n- Create visuals\n- Practice basics")
+                            col1, col2 = st.columns([3, 1])
 
-                            if st.button(f"Generate similar question for {q_id}"):
-                                st.session_state.show_practice = True
-                                st.session_state.practice_topic = topic
-                                st.session_state.practice_id = q_id
+                            with col1:
+                                st.write("**Step-by-Step Solution:**")
+                                if isinstance(solution_steps, list):
+                                    for step in solution_steps:
+                                        st.write(f"→ {step}")
+                                else:
+                                    st.write(solution_steps)
+
+                                st.write("**General Study Tips:**")
+                                if topic == "Algebra":
+                                    st.write(
+                                        "- Break problem into steps\n- Check variable isolation\n- Substitute values")
+                                elif topic == "Geometry":
+                                    st.write("- Draw diagrams\n- Identify key formulas\n- Look for patterns")
+                                elif topic == "Calculus":
+                                    st.write("- Review rules\n- Simplify functions\n- Check algebra")
+                                else:
+                                    st.write("- Review concepts\n- Create visuals\n- Practice basics")
+
+                            with col2:
+                                if st.button(f"🧩 Similar Question\nfor {q_id}",
+                                             help="Generate practice question on this topic"):
+                                    st.session_state.show_practice = True
+                                    st.session_state.practice_topic = topic
+                                    st.session_state.practice_id = q_id
         except Exception as e:
             st.error(f"Question analysis error: {str(e)}")
 
     except Exception as e:
         st.error(f"Critical application error: {str(e)}")
         st.stop()
-
 if __name__ == "__main__":
     main()
+
