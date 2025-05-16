@@ -24,16 +24,23 @@ PREREQUISITES = {
     'Geometry': ['Algebra'],
     'Calculus': ['Algebra', 'Geometry'],
     'Chemistry': ['Algebra'],
-    'Biology': ['Chemistry']
+    'Biology': ['Chemistry'],
+    'Chemical Bonding': ['Chemistry'],
+    'Kinematics': ['Algebra'],
+    'DNA Replication': ['Biology'],
+    'Gas Laws': ['Chemistry']
 }
-TOPICS = ['Algebra', 'Geometry', 'Calculus', 'Chemistry', 'Biology',
-         'Kinematics', 'DNA Replication', 'Gas Laws']
+TOPICS = [
+    'Algebra', 'Geometry', 'Calculus', 'Chemistry', 'Biology',
+    'Chemical Bonding', 'Kinematics', 'DNA Replication', 'Gas Laws'
+]
 SUBTOPICS = {
     'Algebra': ['Equations', 'Inequalities', 'Polynomials'],
     'Geometry': ['Angles', 'Shapes', 'Trigonometry'],
     'Calculus': ['Limits', 'Derivatives', 'Integrals'],
-    'Chemistry': ['Elements', 'Reactions', 'Compounds'],
-    'Biology': ['Cells', 'Genetics', 'Ecology']
+    'Chemistry': ['Elements', 'Reactions', 'Compounds','Chemical Bonding', 'Gas Laws'],
+    'Biology': ['Cells', 'Genetics', 'Ecology', 'DNA Replication'],
+    'Physics': ['Kinematics']
 }
 
 # Application-level edges
@@ -517,7 +524,7 @@ def generate_student_data(num_students=500):
         exam_date = datetime.now() - timedelta(days=30)  # Fixed start date
 
         # Force completion of core topics
-        done = ['Algebra', 'Geometry'] if sid == 0 else ['Algebra']
+        done = ['Algebra', 'Geometry','Chemical Bonding'] if sid == 0 else ['Algebra']
 
         # Generate interactions for all topics
         for topic in TOPICS:
@@ -854,15 +861,35 @@ def build_knowledge_graph(prereqs, df, topics, OR_thresh=2.0, SHAP_thresh=0.01,
     for topic in topics:
         G.add_node(topic, type='topic')
 
-    # Initialize application nodes
+    # Add application relationships with validation
     for app_key, app_info in application_relations.items():
-        G.add_node(app_key, type='application')
-        G.add_node(app_info['base_topic'], type='base_topic')
+        base_topic = app_info['base_topic']
 
-    # Add predefined relationships
-    for target, requirements in prereqs.items():
-        for req in requirements:
-            G.add_edge(req, target, relation='prereq', weight=3.0)
+        # Validate base topic exists in core topics
+        if base_topic not in G.nodes:
+            st.warning(f"⚠️ Missing base topic '{base_topic}' for application '{app_key}'. Skipping...")
+            continue
+
+        # Create application node if not exists
+        if app_key not in G.nodes:
+            G.add_node(app_key, type='application')
+
+        # Add relationship with validation
+        if G.has_node(base_topic) and G.has_node(app_key):
+            G.add_edge(base_topic, app_key,
+                       relation='application',
+                       weight=2.5,
+                       description=app_info.get('description', ''))
+        else:
+            st.error(f"❌ Failed to create application relationship between {base_topic} and {app_key}")
+
+        # Add prerequisite relationships
+        for target, requirements in prereqs.items():
+            for req in requirements:
+                if req in G.nodes and target in G.nodes:
+                    G.add_edge(req, target, relation='prereq', weight=3.0)
+                else:
+                    st.warning(f"Missing prerequisite node(s) for {req} -> {target}")
 
     # Add application relationships
     for app_key, app_info in application_relations.items():
