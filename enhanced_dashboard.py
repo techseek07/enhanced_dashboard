@@ -344,11 +344,20 @@ def segment_students(df):
         perf['cluster'] = kmeans.fit_predict(perf[['acc', 'time']])
     except Exception as e:
         perf['cluster'] = 0
-    # MANUALLY OVERRIDE DEMO STUDENTS AFTER CLUSTERING
+        # MANUALLY OVERRIDE DEMO STUDENTS AFTER CLUSTERING
     if not perf.empty:
-        perf.loc[perf.StudentID == 0, 'cluster'] = 0  # Topper
-        perf.loc[perf.StudentID == 1, 'cluster'] = 1  # Average
-        perf.loc[perf.StudentID == 2, 'cluster'] = 2  # Poor
+        # Assign clusters based on performance
+        perf.loc[perf.StudentID == 0, 'cluster'] = 0  # Topper cluster
+        perf.loc[perf.StudentID == 1, 'cluster'] = 1  # Average cluster
+        perf.loc[perf.StudentID == 2, 'cluster'] = 2  # Poor cluster
+
+        # DIRECT LABEL MAPPING FOR DEMO STUDENTS
+    label_map = {
+        0: 'Topper',
+        1: 'Average',
+        2: 'Poor'
+    }
+    perf['label'] = perf['cluster'].map(label_map)
 
     # Validation of cluster statistics
     cluster_stats = perf.groupby('cluster')['acc'].agg(['mean', 'count'])
