@@ -817,7 +817,7 @@ def update_knowledge_graph_with_quiz(G, sid, topic):
                         break
 
                 if not question:
-                    st.error(f"Missing question: {response['qid']")
+                    st.error(f"Missing question: {response['qid']}")
                     continue
 
                 # 5. Validate subtopic fields
