@@ -1567,9 +1567,9 @@ def get_recommendations(sid, df, G, seg, mot='High'):
 
     # 9) Add motivation quote if motivation is medium or low
     if mot in ['Medium', 'Low']:
-        quote = MOTIVATION_QUOTES[np.random.randint(0, len(MOTIVATION_QUOTES))]
+        quotes_list = list(MOTIVATION_QUOTES.values())
+        quote = quotes_list[np.random.randint(0, len(quotes_list))]
         rec.append(f"💭 Quote: \"{quote}\"")
-
     # 10) Add the enhanced subtopic recommendations as a separate section
     subtopic_recs = get_enhanced_subtopic_recommendations(
         G, sid, QUESTION_BANK, df,  # Added df parameter
@@ -2241,7 +2241,7 @@ def main():
                     st.subheader("Knowledge Graph Impact Analysis")
 
                     for q in problem_questions:
-                        with st.expander(f"{q[2]}: {q[1]} (Success Rate: {q[3]:.0%})"):
+                        with st.expander(f"{q[2]}: {q[1]} (Success Rate: {q[3]})"):
                             col1, col2 = st.columns([2, 1])
                             with col1:
                                 st.markdown("**Solution Steps:**")
