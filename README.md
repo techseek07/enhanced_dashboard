@@ -8,6 +8,8 @@ Performance Analytics: Detailed topic-level and question-level performance insig
 Interactive Quizzes: Formative assessments with immediate feedback
 Peer Insights: Comparative analytics and peer tutoring matches
 Adaptive Content: Motivation-sensitive recommendations that adapt to student mood
+**it takes 5 to 6 minutes to load build the graph**
+
 Demo
 ![Dashboareenshots of main dashboard components here*
 Installation
