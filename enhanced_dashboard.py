@@ -407,6 +407,8 @@ def validate_answer(question, student_answer):
     except Exception as e:
         st.error(f"Error validating answer: {str(e)}")
         return False, f"Error validating answer: {str(e)}"
+
+
 # ==================================================================
 # 2. Student Segmentation & Peer Insights
 # ==================================================================
@@ -836,17 +838,15 @@ def update_knowledge_graph_with_quiz(G, sid, topic):
         mastery = sum(1 for r in responses if r.get('is_correct', False)) / total
         mastery = min(max(mastery, 0), 1)  # Clamp between 0-1
 
-        # 2. Safe node updates
-        if G.has_node(topic):
+        # 2. Safe node updates - THIS IS THE FIX
+        # G is a NetworkX DiGraph object, not a dictionary
+        # We need to update node attributes, not use dictionary assignment
+        if not G.has_node(topic):
+            G.add_node(topic, type='topic', mastery=mastery, last_attempt=datetime.now().isoformat())
+        else:
+            # Update existing node attributes
             G.nodes[topic]['mastery'] = mastery
             G.nodes[topic]['last_attempt'] = datetime.now().isoformat()
-
-        # CRITICAL FIX 1: Update the knowledge_graph session state that recommendations use
-        if sid not in st.session_state.knowledge_graph:
-            st.session_state.knowledge_graph[sid] = {}
-
-        # Store mastery directly in the session state knowledge graph
-        st.session_state.knowledge_graph[sid][topic] = mastery * 100  # Convert to percentage for recommendations
 
         # Only show the success message once
         st.success(f"Updated mastery for {topic} to {int(mastery * 100)}%")
@@ -855,32 +855,27 @@ def update_knowledge_graph_with_quiz(G, sid, topic):
         seen_subtopics = set()
         subtopic_weights = Counter()
 
-        # CRITICAL FIX 2: Use the FORMULA_QUIZ_BANK to find questions instead of QUESTION_BANK
-        # This is important because your quiz UI is using FORMULA_QUIZ_BANK
+        # Merge question banks to find matching questions
+        # First try to find the question in FORMULA_QUIZ_BANK
         all_questions = []
-        for sub, questions in FORMULA_QUIZ_BANK.get(topic, {}).items():
-            all_questions.extend(questions)
+        if topic in FORMULA_QUIZ_BANK:
+            for sub, questions in FORMULA_QUIZ_BANK[topic].items():
+                all_questions.extend(questions)
 
         for response in responses:
             try:
-                # Find the question that matches this response in FORMULA_QUIZ_BANK
+                # First look in FORMULA_QUIZ_BANK flattened questions
                 question = next((q for q in all_questions if q['id'] == response['qid']), None)
 
                 # Fallback to QUESTION_BANK if not found
-                if not question:
-                    for t in QUESTION_BANK:
-                        for q in QUESTION_BANK[t]:
-                            if q['id'] == response['qid']:
-                                question = q
-                                break
-                        if question:
-                            break
+                if not question and topic in QUESTION_BANK:
+                    question = next((q for q in QUESTION_BANK[topic] if q['id'] == response['qid']), None)
 
                 if not question:
                     st.warning(f"Missing question: {response['qid']}")
                     continue
 
-                # 5. Validate subtopic fields
+                # 5. Process subtopics from either question format
                 for i in (1, 2, 3):
                     subtopic = question.get(f'subtopic{i}')
                     if subtopic:
@@ -897,7 +892,7 @@ def update_knowledge_graph_with_quiz(G, sid, topic):
                 seen_subtopics.add(subtopic)
             G.add_edge(topic, subtopic, relation='subtopic', weight=weight)
 
-        # CRITICAL FIX 3: Update quiz progress
+        # Update quiz progress in a separate session state
         if 'quiz_progress' not in st.session_state:
             st.session_state.quiz_progress = {}
         if sid not in st.session_state.quiz_progress:
@@ -912,8 +907,6 @@ def update_knowledge_graph_with_quiz(G, sid, topic):
         st.error(f"Knowledge graph update failed: {str(e)}")
         import traceback
         st.error(traceback.format_exc())
-
-
 # ==================================================================
 # 4. Collaborative Filtering & Peer Tutoring
 # ==================================================================
@@ -1026,7 +1019,23 @@ def suggest_peer_tutoring(sid, df, seg):
 # 5. Quiz Helpers
 # ==================================================================
 def get_quiz_recommendations(sid, completed):
+    """
+    Get quiz recommendations based on student completion and quiz progress.
+
+    Args:
+        sid: Student ID
+        completed: List of completed topics
+
+    Returns:
+        list: Quiz recommendations
+    """
     rec = []
+
+    # Ensure quiz_progress is initialized
+    if 'quiz_progress' not in st.session_state:
+        st.session_state.quiz_progress = {}
+    if sid not in st.session_state.quiz_progress:
+        st.session_state.quiz_progress[sid] = {}
 
     # Only recommend topics the student has completed
     for t in completed:
@@ -1035,9 +1044,19 @@ def get_quiz_recommendations(sid, completed):
             p = st.session_state.quiz_progress.setdefault(sid, {}).get(t, 0)
             subs = list(FORMULA_QUIZ_BANK[t].keys())
 
-            # Recommend next subtopic if available
+            # Check if there are more subtopics available
             if p < len(subs):
                 rec.append(f"📝 Quiz Alert: {subs[p]} ({t})")
+            else:
+                # All subtopics completed
+                # Get mastery from graph
+                if 'knowledge_graph' in st.session_state:
+                    G = st.session_state.knowledge_graph
+                    if G.has_node(t):
+                        mastery = G.nodes[t].get('mastery', 0) * 100  # Convert to percentage
+                        if mastery < 70:
+                            # Recommend review if mastery is low
+                            rec.append(f"📝 Review Alert: {t} (Mastery: {int(mastery)}%)")
 
     return rec
 
@@ -1086,13 +1105,45 @@ def get_recommendations(sid, df, G, seg, mot='High'):
             if t in HOTS_QUESTIONS:
                 rec.append(f"🧠 HOTS {t}: {', '.join(HOTS_QUESTIONS[t][:2])}")
 
-    # 4) Practice recommendations for up to 3 completed topics
+    # 4) Practice recommendations using knowledge graph relationships instead of just completed topics
+    practice_candidates = []
+
+    # First, add completed topics (direct practice)
     for t in comp[:3]:
+        if t in PRACTICE_QUESTIONS:
+            practice_candidates.append((t, 3.0, "completed"))  # Base priority for completed topics
+
+    # Second, add topics with strong graph relationships
+    for t in comp:
+        # Get outgoing edges from this topic
+        if G.has_node(t):
+            for _, connected_topic, edge_data in G.out_edges(t, data=True):
+                # Skip if already in practice_candidates or not in PRACTICE_QUESTIONS
+                if connected_topic not in [c[0] for c in practice_candidates] and connected_topic in PRACTICE_QUESTIONS:
+                    # Priority based on edge weight/relationship
+                    priority = 1.0
+                    if 'weight' in edge_data:
+                        priority = min(edge_data['weight'], 5.0) / 2  # Scale to 0.5-2.5
+                    relation = edge_data.get('relation', 'other')
+
+                    # Boost priority based on relationship type
+                    if relation in ['prereq', 'application']:
+                        priority += 1.0
+                    elif relation in ['subtopic']:
+                        priority += 0.5
+
+                    practice_candidates.append((connected_topic, priority, relation))
+
+    # Sort by priority and recommend top 3
+    practice_candidates.sort(key=lambda x: x[1], reverse=True)
+    for t, priority, relation in practice_candidates[:3]:
         if t in PRACTICE_QUESTIONS:
             pq = PRACTICE_QUESTIONS[t]
             seq = pq.get('recent', []) + pq.get('historical', []) + pq.get('fundamental', [])
-            rec.append(f"📚 Practice {t}: {', '.join(seq[:3])}")
-
+            relation_note = ""
+            if relation != "completed":  # Not a directly completed topic
+                relation_note = f" ({relation} to {t})"
+            rec.append(f"📚 Practice {t}{relation_note}: {', '.join(seq[:3])}")
     # 5) Quiz recommendations
     quiz_recs = get_quiz_recommendations(sid, comp)
     rec.extend(quiz_recs[:2])
