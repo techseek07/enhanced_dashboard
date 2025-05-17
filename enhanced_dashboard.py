@@ -1303,6 +1303,19 @@ def get_quiz_recommendations(sid, completed):
 # 6. Comprehensive Recommendations
 # ==================================================================
 def get_recommendations(sid, df, G, seg, mot='High'):
+    """
+    Generate personalized student recommendations based on performance data and knowledge graph.
+
+    Args:
+        sid: Student ID
+        df: Student data dataframe
+        G: Knowledge graph
+        seg: Student segment/cluster mapping
+        mot: Motivation level override
+
+    Returns:
+        list: Recommendations based on student data
+    """
     # Handle empty dataframe
     if df.empty:
         return ["No student data available for recommendations."]
@@ -1315,36 +1328,95 @@ def get_recommendations(sid, df, G, seg, mot='High'):
     # Calculate accuracy by topic
     acc = sd.groupby('Topic').Correct.mean()
 
+    # Define low and high performing topics
+    low_topics = acc[acc < 0.3].index.tolist()
+    high_topics = acc[acc > 0.7].index.tolist()
+
     # Get completed topics
     comp = sd[sd.Completed].Topic.unique().tolist()
 
-    rec = []
-    topper_recs = recommend_topper_resources(seg, df)
-    if topper_recs:
-        rec.insert(0, "🌟 Top Performer Strategies:")
-        rec.extend([f"   → {r}" for r in topper_recs[:3]])
-    # 1) Add a motivation quote
-    if comp:
-        selected_topic = np.random.choice(comp)
-        if selected_topic in MOTIVATION_QUOTES:
-            rec.append(f"💭 \"{MOTIVATION_QUOTES[selected_topic]}\"")
+    # Get student tier
+    tier = seg.get(sid, "Unknown")
 
-    # 2) Bridge course recommendations for low‐accuracy topics
-    low_topics = acc[acc < 0.3].index.tolist()
+    # Initialize recommendations list
+    rec = []
+
+    # 1) Top Performer Strategies (if applicable)
+    if tier == "Topper" and mot != "Low":
+        for t in comp[:1]:
+            rec.append(f"🌟 Top Performer: Keep reviewing {t} weekly to maintain mastery")
+
+    # 2) Graph-enhanced Bridge course recommendations
+    bridge_candidates = []
+
+    # First consider accuracy-based candidates
     for t in low_topics:
         if t in BRIDGE_COURSES:
-            rec.append(f"🚧 Bridge: {t} - {BRIDGE_COURSES[t]}")
+            # Base score from accuracy - lower accuracy = higher priority
+            priority = 3.0 * (0.3 - acc[t])  # Maps [0-0.3] to [0.9-0]
+            bridge_candidates.append((t, priority, "low_accuracy"))
+
+    # Then enhance with graph relationships
+    for node in G.nodes():
+        if G.nodes[node].get('type') == 'topic':
+            # Look for topics with many outgoing prerequisite edges (foundation topics)
+            prereq_edges = [(s, t, d) for s, t, d in G.out_edges(node, data=True)
+                            if d.get('relation') == 'prereq']
+
+            if len(prereq_edges) >= 2:  # This is a foundational topic
+                # Check if student has low-medium mastery
+                mastery = G.nodes[node].get('mastery', 0)
+                if mastery < 0.6 and node in BRIDGE_COURSES:
+                    bridge_candidates.append((node, 2.0 + (len(prereq_edges) * 0.2), "foundation"))
+
+    # Sort by priority and recommend top 3
+    bridge_candidates.sort(key=lambda x: x[1], reverse=True)
+    for t, _, reason in bridge_candidates[:3]:
+        context = " (Foundation for multiple topics)" if reason == "foundation" else ""
+        if t in BRIDGE_COURSES:
+            rec.append(f"🚧 Bridge: {t}{context} - {BRIDGE_COURSES[t]}")
         else:
-            rec.append(f"🚧 Bridge: {t}")
+            rec.append(f"🚧 Bridge: {t}{context}")
 
-    # 3) HOTS for high‐accuracy topics (unless motivation is Low)
+    # 3) Graph-enhanced HOTS for high-accuracy topics
     if mot != 'Low':
-        high_topics = acc[acc > 0.7].index.tolist()
-        for t in high_topics[:2]:
-            if t in HOTS_QUESTIONS:
-                rec.append(f"🧠 HOTS {t} (Strong topic): {', '.join(HOTS_QUESTIONS[t][:2])}")
+        hots_candidates = []
 
-    # 4) Practice recommendations using knowledge graph relationships and completion data
+        # Start with accuracy-based candidates
+        for t in high_topics:
+            if t in HOTS_QUESTIONS:
+                priority = acc[t]  # Base priority from accuracy
+                hots_candidates.append((t, priority, "high_accuracy"))
+
+        # Add graph-based candidates
+        for node in G.nodes():
+            if G.nodes[node].get('type') == 'topic' and node in HOTS_QUESTIONS:
+                # Find topics with application connections (practical relevance)
+                app_edges = [(s, t, d) for s, t, d in G.out_edges(node, data=True)
+                             if d.get('relation') in ('application', 'app_preparation')]
+
+                # Find topics with high centrality (connect many concepts)
+                centrality = 0
+                try:
+                    if 'centrality' not in st.session_state:
+                        st.session_state.centrality = nx.betweenness_centrality(G)
+                    centrality = st.session_state.centrality.get(node, 0) * 10  # Scale up
+                except:
+                    pass
+
+                # Calculate priority based on applications and centrality
+                if app_edges or centrality > 0.5:
+                    graph_priority = 0.6 + (len(app_edges) * 0.1) + centrality
+                    hots_candidates.append((node, graph_priority, "connected_concept"))
+
+        # Sort by priority and recommend top 2
+        hots_candidates.sort(key=lambda x: x[1], reverse=True)
+        for t, _, reason in hots_candidates[:2]:
+            context = " (Connects many concepts)" if reason == "connected_concept" else " (Strong topic)"
+            if t in HOTS_QUESTIONS:
+                rec.append(f"🧠 HOTS {t}{context}: {', '.join(HOTS_QUESTIONS[t][:2])}")
+
+    # 4) Practice recommendations using knowledge graph relationships
     practice_candidates = []
 
     # First, add completed topics (direct practice)
@@ -1403,16 +1475,17 @@ def get_recommendations(sid, df, G, seg, mot='High'):
 
     # 5) Quiz recommendations
     quiz_recs = get_quiz_recommendations(sid, comp)
-    rec.extend(quiz_recs[:2])
+    rec.extend(quiz_recs)
 
-    # 6) Media & analogies
-    hard_topics = acc[acc < 0.5].index.tolist()
+    # 6) Media & analogies recommendations
     # first, videos for up to 2 completed topics
     for t in comp[:2]:
         m = MEDIA_LINKS.get(t, {})
         if m.get('videos'):
-            rec.append(f"🎥 Media: {', '.join(m['videos'][:1])}")
-            # then, analogies for all “hard” topics
+            rec.append(f"🎥 Media: {', '.join(m['videos'][:2])}")  # Showing up to 2 videos per topic
+
+    # then, analogies for all "hard" topics
+    hard_topics = acc[acc < 0.5].index.tolist()
     for t in hard_topics:
         m = MEDIA_LINKS.get(t, {})
         if m.get('analogies'):
@@ -1423,77 +1496,82 @@ def get_recommendations(sid, df, G, seg, mot='High'):
         if t in FORMULA_REVISION:
             rec.append(f"📊 Formula Help {t}: {', '.join(FORMULA_REVISION[t][:2])}")
 
-            # 8) Enhanced Easy‐win topics if motivation is Low
-            if mot == 'Low':
-                # Create a dictionary to store topics with their strength scores
-                topic_strengths = {}
+    # 8) Enhanced Easy Win topics if motivation is Low
+    if mot == 'Low':
+        # Create a dictionary to store topics with their strength scores
+        topic_strengths = {}
 
-                # First, add completed topics with a base score
-                for t in comp:
-                    topic_strengths[t] = 1.0  # Base score for completed topics
+        # First, add completed topics with a base score
+        for t in comp:
+            topic_strengths[t] = 1.0  # Base score for completed topics
 
-                # Then, enhance scores with knowledge graph data
-                for node in G.nodes():
-                    # Check if it's a topic node and in our list
-                    if G.nodes[node].get('type') == 'topic' and node in topic_strengths:
-                        # Get the mastery percentage if available in graph
-                        mastery = G.nodes[node].get('mastery_pct', 0)
-                        topic_strengths[node] += mastery / 100.0  # Add 0-1 based on mastery
+        # Then, enhance scores with knowledge graph data
+        for node in G.nodes():
+            # Check if it's a topic node and in our list
+            if G.nodes[node].get('type') == 'topic' and node in topic_strengths:
+                # Get the mastery percentage if available in graph
+                mastery = G.nodes[node].get('mastery_pct', 0)
+                topic_strengths[node] += mastery / 100.0  # Add 0-1 based on mastery
 
-                        # Check for strong edges coming into this topic (indicates student strength)
-                        strong_connections = 0
-                        for _, _, data in G.in_edges(node, data=True):
-                            if data.get('weight', 0) > 3.0:  # Strong connection threshold
-                                strong_connections += 1
+                # Check for strong edges coming into this topic (indicates student strength)
+                strong_connections = 0
+                for _, _, data in G.in_edges(node, data=True):
+                    if data.get('weight', 0) > 3.0:  # Strong connection threshold
+                        strong_connections += 1
 
-                        topic_strengths[node] += min(strong_connections * 0.2, 1.0)  # Add up to 1.0 for connections
+                topic_strengths[node] += min(strong_connections * 0.2, 1.0)  # Add up to 1.0 for connections
 
-                # Sort topics by strength score
-                strong_topics = sorted(topic_strengths.items(), key=lambda x: x[1], reverse=True)
+        # Sort topics by strength score
+        strong_topics = sorted(topic_strengths.items(), key=lambda x: x[1], reverse=True)
 
-                # Choose from top 3 strong topics (with some randomness)
-                if strong_topics:
-                    top_topics = strong_topics[:min(3, len(strong_topics))]
-                    chosen_topic, strength = random.choice(top_topics)
+        # Choose from top 3 strong topics (with some randomness)
+        if strong_topics:
+            top_topics = strong_topics[:min(3, len(strong_topics))]
+            chosen_topic, strength = random.choice(top_topics)
 
-                    # Format the recommendation based on topic strength
-                    confidence_indicator = "💪" if strength > 2.0 else "✓"
+            # Format the recommendation based on topic strength
+            confidence_indicator = "💪" if strength > 2.0 else "✓"
 
-                    # Combine with EASY_TOPICS if available
-                    if chosen_topic in EASY_TOPICS:
-                        easy_content = EASY_TOPICS[chosen_topic][0]
-                        rec.append(f"👍 Easy Win: {chosen_topic} {confidence_indicator} - {easy_content}")
-                    else:
-                        # Create a generic easy win suggestion
-                        rec.append(
-                            f"👍 Easy Win: Review {chosen_topic} {confidence_indicator} - You've shown strong understanding here!")
+            # Combine with EASY_TOPICS if available
+            if chosen_topic in EASY_TOPICS:
+                easy_content = EASY_TOPICS[chosen_topic][0]
+                rec.append(f"👍 Easy Win: {chosen_topic} {confidence_indicator} - {easy_content}")
+            else:
+                # Create a generic easy win suggestion
+                rec.append(
+                    f"👍 Easy Win: Review {chosen_topic} {confidence_indicator} - You've shown strong understanding here!")
 
-            # Add the enhanced subtopic recommendations
-            subtopic_recs = get_enhanced_subtopic_recommendations(G, sid, QUESTION_BANK)
-            rec.extend(subtopic_recs)
+    # 9) Add motivation quote if motivation is medium or low
+    if mot in ['Medium', 'Low']:
+        quote = MOTIVATION_QUOTES[np.random.randint(0, len(MOTIVATION_QUOTES))]
+        rec.append(f"💭 Quote: \"{quote}\"")
 
-        # b) collaborative filtering suggestions
-        collab_recs = collaborative_filtering_recommendations(sid, df, seg)
-        rec.extend(collab_recs)
+    # 10) Add the enhanced subtopic recommendations as a separate section
+    subtopic_recs = get_enhanced_subtopic_recommendations(G, sid, QUESTION_BANK)
+    # Rename prefix to match what UI expects
+    subtopic_recs = [r.replace("🔧 Priority subtopics in", "🔧 Subtopics for") for r in subtopic_recs]
+    rec.extend(subtopic_recs)
 
-        # c) “future” topics (prereqs or odds_ratio)
-        future_topics = [
-            v for _, v, d in G.out_edges(t, data=True)
-            if d.get('relation') in ('prereq', 'odds_ratio')
-        ]
-        if future_topics:
-            rec.append(f"🔄 Apply {t} in: {', '.join(future_topics[:2])} - Connects concepts across contexts")
+    # 11) Process graph-based relationships for all completed topics
+    for t in comp:
+        if G.has_node(t):
+            # Future topics (prereqs or odds_ratio)
+            future_topics = [
+                v for _, v, d in G.out_edges(t, data=True)
+                if d.get('relation') in ('prereq', 'odds_ratio')
+            ]
+            if future_topics:
+                rec.append(f"🔄 Apply {t} in: {', '.join(future_topics[:2])} - Connects concepts across contexts")
 
-        # d) direct applications
-        apps = [
-            v for _, v, d in G.out_edges(t, data=True)
-            if d.get('relation') in ('app_preparation', 'application')
-        ]
-        if apps:
-            rec.append(f"🔬 Real applications of {t}: {', '.join(apps[:2])} - Why this matters")
+            # Direct applications
+            apps = [
+                v for _, v, d in G.out_edges(t, data=True)
+                if d.get('relation') in ('app_preparation', 'application')
+            ]
+            if apps:
+                rec.append(f"🔬 Real applications of {t}: {', '.join(apps[:2])} - Why this matters")
+
     return rec
-
-
 
 
 def analyze_item_level_performance(sid):
