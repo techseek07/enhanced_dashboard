@@ -106,18 +106,18 @@ if "quiz_progress" not in st.session_state:
     st.session_state.quiz_progress = {}
 QUESTION_BANK = {
     'Algebra': [
-        {"id":"alg_1","text":"2x+3=7, x=?","difficulty":1,"type":"free_response","answer":"2"}
+        {"id":"alg_q1","text":"2x+3=7, x=?","difficulty":1,"type":"free_response","answer":"2"}
     ],
     'Geometry': [
         {"id":"geo_1","text":"Area of triangle base=4,h=3","difficulty":1,
          "type":"free_response","answer":"6"}
     ],
     'Calculus': [
-        {"id":"calc_1","text":"∫2x dx from 0 to 2","difficulty":1,
+        {"id":"calc_q1","text":"∫2x dx from 0 to 2","difficulty":1,
          "type":"free_response","answer":"4"}
     ],
     'Chemistry': [
-        {"id":"chem_1","text":"Balance H₂ + O₂ → H₂O","difficulty":1,
+        {"id":"chem_q1","text":"Balance H₂ + O₂ → H₂O","difficulty":1,
          "type":"free_response","answer":"2H₂+O₂→2H₂O"}
     ]
 }
@@ -986,7 +986,10 @@ def get_recommendations(sid, df, G, seg, mot='High'):
     comp = sd[sd.Completed].Topic.unique().tolist()
 
     rec = []
-
+    topper_recs = recommend_topper_resources(seg, df)
+    if topper_recs:
+        rec.insert(0, "🌟 Top Performer Strategies:")
+        rec.extend([f"   → {r}" for r in topper_recs[:3]])
     # 1) Add a motivation quote
     if comp:
         selected_topic = np.random.choice(comp)
@@ -1376,6 +1379,13 @@ def main():
                                         else:
                                             st.info("No significant behavioral differences found")
                                     with col2:
+                                        if len(insights) >= 1:
+                                            # Add topper resource tips
+                                            topper_tips = recommend_topper_resources(seg, df)
+                                            if topper_tips:
+                                                st.markdown("**💡 Top Performer Habits:**")
+                                                for tip in topper_tips[:2]:
+                                                    st.info(tip)
                                         st.markdown("##### 🚀 Improvement Plan")
                                         if len(insights) >= 1:
                                             try:
