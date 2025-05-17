@@ -1036,43 +1036,75 @@ def track_question_response(sid, question_id, is_correct):
         if sid not in st.session_state.question_responses:
             st.session_state.question_responses[sid] = {}
 
+        # FIX THIS LINE - don't reset the dictionary!
         if question_id not in st.session_state.question_responses[sid]:
-            st.session_state.question_responses[sid] = {}
+            st.session_state.question_responses[sid][question_id] = []  # Initialize as empty list
 
         # Update question response tracking
-        st.session_state.question_responses[sid][question_id] = st.session_state.question_responses[sid].get(
-            question_id, [])
         st.session_state.question_responses[sid][question_id].append(int(is_correct))
-
-        # REMOVED: Graph update section that caused double updates
 
     except Exception as e:
         st.error(f"Error tracking question response: {str(e)}")
+
+
 # ==================================================================
 #  get_enhanced_subtopic_recommendations
 # ==================================================================
 
-def get_enhanced_subtopic_recommendations(G, sid, QUESTION_BANK):
+def get_enhanced_subtopic_recommendations(G, sid, QUESTION_BANK, df, max_topics=3, min_weight=2.0):
     """
-    Generate enhanced data-driven subtopic recommendations by analyzing
-    the knowledge graph and student performance data.
+    Generate enhanced data-driven subtopic recommendations with limitations.
 
     Args:
         G: NetworkX knowledge graph
         sid: Student ID
         QUESTION_BANK: Dictionary of questions organized by topic
+        df: Student data dataframe
+        max_topics: Maximum number of topics to show subtopics for
+        min_weight: Minimum weight threshold for subtopics to be recommended
 
     Returns:
-        list: Prioritized subtopic recommendations
+        list: Prioritized subtopic recommendations (limited)
     """
     recommendations = []
+    topic_candidates = []
 
-    # Enhanced data-driven subtopic recommendations
+    # Get topics the student has studied (ADD THIS SECTION)
+    student_data = df[df.StudentID == sid]
+    relevant_topics = set(student_data.Topic.unique())  # Only show subtopics for topics the student has studied
+
+    # First pass: collect all topic nodes with their importance scores
     for t in G.nodes():
-        # Skip non-topic nodes
-        if G.nodes[t].get('type') != 'topic':
+        # Skip non-topic nodes or topics student hasn't studied
+        if G.nodes[t].get('type') != 'topic' or t not in relevant_topics:  # MODIFIED
             continue
 
+        # Calculate topic importance based on:
+        # 1. Node mastery (lower = higher priority for help)
+        # 2. Number of prerequisites (more = more foundational)
+        # 3. Centrality in graph
+        mastery = G.nodes[t].get('mastery', 0.5)
+        prereq_count = len([1 for _, _, d in G.out_edges(t, data=True) if d.get('relation') == 'prereq'])
+
+        try:
+            centrality = nx.betweenness_centrality(G).get(t, 0)
+        except:
+            centrality = 0
+
+        # Higher score = more important to show subtopics
+        importance = (1 - mastery) + (prereq_count * 0.2) + (centrality * 5)
+
+        # Only consider topics that have subtopics
+        has_subtopics = any(d.get('relation') == 'subtopic' for _, _, d in G.out_edges(t, data=True))
+        if has_subtopics:
+            topic_candidates.append((t, importance))
+
+    # Sort topics by importance and take top N
+    topic_candidates.sort(key=lambda x: x[1], reverse=True)
+    selected_topics = [t for t, _ in topic_candidates[:max_topics]]
+
+    # Second pass: process only selected topics
+    for t in selected_topics:
         # Initialize containers for weighted subtopics
         sub_weights = {}
 
@@ -1090,7 +1122,7 @@ def get_enhanced_subtopic_recommendations(G, sid, QUESTION_BANK):
                 # Find question details and associated subtopics
                 for topic, questions in QUESTION_BANK.items():
                     for q in questions:
-                        if q['id'] == qid:
+                        if q.get('id') == qid:
                             # Check if question is related to current topic
                             if topic == t:
                                 # Calculate performance on this question
@@ -1106,40 +1138,32 @@ def get_enhanced_subtopic_recommendations(G, sid, QUESTION_BANK):
                                             sub_weights[subtopic] += (1.0 - success_rate) * 2
 
         # 3. Apply centrality measures from the knowledge graph
-        # Calculate betweenness centrality (how important nodes are as bridges)
         try:
             centrality = nx.betweenness_centrality(G, k=min(10, len(G.nodes)))
             for sub in sub_weights:
                 if sub in centrality:
                     # Boost weight based on centrality (importance in graph)
                     sub_weights[sub] += centrality[sub] * 5
-        except Exception as e:
-            st.error(f"Centrality calculation failed: {str(e)}")
+        except:
             pass  # Skip if centrality calculation fails
 
-        # 4. Sort and recommend subtopics based on final weights
-        weighted_subs = sorted(sub_weights.items(), key=lambda x: x[1], reverse=True)
+        # 4. Filter by minimum weight threshold and sort
+        weighted_subs = [(sub, weight) for sub, weight in sub_weights.items() if
+                         weight >= min_weight]  # INCREASED THRESHOLD
+        weighted_subs.sort(key=lambda x: x[1], reverse=True)
 
+        # Limit to top 3 subtopics per topic
         if weighted_subs:
             # Format subtopic recommendations with weights
             formatted_subs = []
-            for sub, weight in weighted_subs[:3]:
-                # Higher weights get more emphasis
+            for sub, weight in weighted_subs[:3]:  # Limit to top 3 per topic
                 emphasis = "🔥" if weight > 3 else "📌" if weight > 2 else ""
                 formatted_subs.append(f"{sub} {emphasis}")
 
-            recommendations.append(f"🔧 Priority subtopics in {t}: {', '.join(formatted_subs)}")
-
-            # 5. Add extra insight for highest weighted subtopic
-            if weighted_subs and weighted_subs[0][1] > 2:
-                top_sub = weighted_subs[0][0]
-                # Find connected concepts to this subtopic
-                related = [v for _, v, d in G.out_edges(top_sub, data=True)]
-                if related:
-                    recommendations.append(f"🔍 Master '{top_sub}' to unlock: {', '.join(related[:2])}")
+            if formatted_subs:
+                recommendations.append(f"🔧 Priority subtopics in {t}: {', '.join(formatted_subs)}")
 
     return recommendations
-
 
 # ==================================================================
 # 4. Collaborative Filtering & Peer Tutoring
@@ -1342,7 +1366,7 @@ def get_recommendations(sid, df, G, seg, mot='High'):
     rec = []
 
     # 1) Top Performer Strategies (if applicable)
-    if tier == "Topper" and mot != "Low":
+    if tier == "Topper" and mot != "Low" and comp:  # Check if comp has items
         for t in comp[:1]:
             rec.append(f"🌟 Top Performer: Keep reviewing {t} weekly to maintain mastery")
 
@@ -1547,7 +1571,12 @@ def get_recommendations(sid, df, G, seg, mot='High'):
         rec.append(f"💭 Quote: \"{quote}\"")
 
     # 10) Add the enhanced subtopic recommendations as a separate section
-    subtopic_recs = get_enhanced_subtopic_recommendations(G, sid, QUESTION_BANK)
+    subtopic_recs = get_enhanced_subtopic_recommendations(
+        G, sid, QUESTION_BANK, df,  # Added df parameter
+        max_topics=3,  # Only show subtopics for top 3 topics
+        min_weight=2.0
+    )
+
     # Rename prefix to match what UI expects
     subtopic_recs = [r.replace("🔧 Priority subtopics in", "🔧 Subtopics for") for r in subtopic_recs]
     rec.extend(subtopic_recs)
@@ -1575,41 +1604,69 @@ def get_recommendations(sid, df, G, seg, mot='High'):
 
 
 def analyze_item_level_performance(sid):
-    """Enhanced analysis with graph visualization"""
-    if sid not in st.session_state.question_responses:
-        return []
+    """
+    Analyze a student's performance at the question level with better error handling and debugging.
+    """
+    try:
+        # First, check if question responses exist
+        if 'question_responses' not in st.session_state:
+            st.info("No question response data available yet. Try taking a quiz first.")
+            return None
 
-    G = st.session_state.knowledge_graph
-    responses = st.session_state.question_responses[sid]
-    problem_questions = []
+        if sid not in st.session_state.question_responses:
+            st.info(f"No question responses found for student {sid}. Try taking a quiz first.")
+            return None
 
-    for q_id, attempts in responses.items():
-        if len(attempts) >= 1:
+        # Debug output to verify data
+        if st.session_state.get('debug_mode', False):
+            st.write("DEBUG - Question responses:", st.session_state.question_responses[sid])
+
+        # Find questions with < 50% success rate
+        difficult_questions = {}
+
+        for qid, attempts in st.session_state.question_responses[sid].items():
+            if not attempts:  # Skip empty attempts
+                continue
+
             success_rate = sum(attempts) / len(attempts)
-            if success_rate < 0.5:
+            if success_rate < 0.5:  # Less than 50% success rate
                 # Find question details
                 for topic, questions in QUESTION_BANK.items():
                     for q in questions:
-                        if q['id'] == q_id:
-                            # Get graph connections
-                            connections = []
-                            if G.has_node(topic):
-                                edges = list(G.in_edges(topic)) + list(G.out_edges(topic))
-                                connections = [f"{s}→{t}" for s, t in edges]
+                        if q.get('id') == qid:
+                            if topic not in difficult_questions:
+                                difficult_questions[topic] = []
+                            difficulty = q.get('difficulty', 1)
+                            difficult_questions[topic].append({
+                                'id': qid,
+                                'text': q.get('text', 'Unknown question'),
+                                'success_rate': f"{int(success_rate * 100)}%",
+                                'attempts': len(attempts),
+                                'difficulty': difficulty,
+                                'score': difficulty * (1 - success_rate)  # Higher = more important
+                            })
 
-                            problem_questions.append((
-                                q_id,
-                                q['text'],
-                                topic,
-                                success_rate,
-                                q.get('solution_steps', 'No feedback available'),
-                                connections  # Add connections to output
-                            ))
-                            break
-                    if q_id in [q['id'] for q in questions]:
-                        break
+        # Handle empty results with a meaningful message
+        if not difficult_questions:
+            st.info("Great job! No specific question difficulties identified yet. Keep practicing!")
+            return None
 
-    return sorted(problem_questions, key=lambda x: x[3])
+        # Sort by importance score
+        for topic in difficult_questions:
+            difficult_questions[topic].sort(key=lambda x: x['score'], reverse=True)
+
+        return difficult_questions
+
+    except KeyError as e:
+        st.error(f"Data access error in question analytics: {e}")
+        return None
+    except Exception as e:
+        st.error(f"Error analyzing question-level performance: {e}")
+        # Print stack trace in debug mode
+        if st.session_state.get('debug_mode', False):
+            import traceback
+            st.code(traceback.format_exc(), language="python")
+        return None
 
 
 # ==================================================================
