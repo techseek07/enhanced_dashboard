@@ -1143,7 +1143,9 @@ def get_recommendations(sid, df, G, seg, mot='High'):
     # 5) Quiz recommendations
     quiz_recs = [f"📝 Quiz | {q}" for q in get_quiz_recommendations(sid, sd)]
     rec.extend(quiz_recs[:2])
-    for t in acc[(acc >= 0.2) & (acc < 0.4)].index.tolist():
+    # New: Needs Work recommendations (20-59% accuracy)
+    needs_work_topics = acc[(acc >= 0.2) & (acc < 0.6)].index.tolist()
+    for t in needs_work_topics:
         rec.append(f"🚨 Needs Work | {t} - Focused Practice Plan [Accuracy: {acc[t]:.0%}]")
 
     # 6) Media & analogies
@@ -1456,7 +1458,7 @@ def main():
                                     matched = True
                                     break
                             if not matched:
-                                rec_types["📚 Practice"].append(r)
+                                rec_types["📚 Practice(less_than_70)"].append(r)
 
                         # Display columns with improved grouping
                         cols = st.columns(3)
@@ -1465,9 +1467,12 @@ def main():
                         with cols[0]:
                             st.markdown("### 📘 Study Plan")
                             # Urgent needs and basics
-                            for item in rec_types["🚨 Urgent"]:
+                            for item in rec_types["🚨 Urgent_course"]:
                                 st.error(item, icon="🚨")
-                            for item in rec_types["📚 Practice"]:
+                                # Needs Work section
+                            for item in rec_types["🚨 Needs Work"]:
+                                st.warning(item, icon="⚠️")
+                            for item in rec_types["📚 Practice(less_than_70)"]:
                                 st.info(item, icon="📚")
                             for item in rec_types["👍 Easy"]:
                                 st.success(item, icon="👍")
@@ -1476,7 +1481,7 @@ def main():
                         with cols[1]:
                             st.markdown("### 💪 Challenges")
                             # Strength and weaknesses
-                            for item in rec_types["🏆 Strong"]:
+                            for item in rec_types["🏆 Strong(HOTS)"]:
                                 st.success(item, icon="✅")
                             for item in rec_types["📝 Quiz"]:
                                 st.warning(item, icon="❓")
@@ -1484,7 +1489,7 @@ def main():
                             if rec_types["🌟 Top"]:
                                 st.markdown("---")
                                 st.markdown("#### 🏅 Top Strategies")
-                                for item in rec_types["🌟 Top"]:
+                                for item in rec_types["🌟 Topper_habit"]:
                                     st.info(item.split("→ ")[-1], icon="💡")
                             # Peer suggestions
                             if rec_types["👥 Peer"]:
@@ -1518,7 +1523,7 @@ def main():
 
                     except Exception as e:
                         st.error(f"Recommendation error: {str(e)}")
-        # Strategic Peer Comparison
+            # Strategic Peer Comparison - Updated Layout
             with st.expander("🔍 Strategic Peer Comparison", expanded=True):
                 if not df.empty and sid is not None:
                     try:
@@ -1529,95 +1534,122 @@ def main():
                             (df.ExamDate < current_start + pd.Timedelta(days=40)) &
                             (df.StudentID != sid)
                             ].StudentID.unique()
+
                         if len(comparable_peers) > 0:
                             peer_perf = df[df.StudentID.isin(comparable_peers)].groupby('StudentID').Correct.mean()
                             current_perf = current_data.Correct.mean()
                             peer_diff = abs(peer_perf - current_perf)
+
                             if not peer_diff.empty:
                                 best_peer = peer_diff.idxmax()
                                 perf_gap = peer_diff.max()
-                                if perf_gap >= 0.2:  # Changed to match function's default threshold of 0.2
-                                    st.markdown(f"#### 🎯 Comparison with Student {best_peer}")
-                                    st.caption(f"Similar start date, {perf_gap:.0%} performance difference")
-                                    # Call progression_summary with the correct parameters
-                                    insights = progression_summary(df, sid, best_peer)
-                                    col1, col2 = st.columns([2, 3])
+
+                                if perf_gap >= 0.2:
+                                    # Header Section
+                                    cols_header = st.columns([1, 3])
+                                    with cols_header[0]:
+                                        st.markdown(f"#### 🎯 Peer Comparison")
+                                        st.metric(label="Performance Gap",
+                                                  value=f"{perf_gap:.0%}",
+                                                  delta=f"vs Student {best_peer}")
+                                    with cols_header[1]:
+                                        st.caption(
+                                            f"**Comparison Criteria**: Similar start date (±40 days), >20% performance gap")
+
+                                    # Main Content Columns
+                                    col1, col2 = st.columns([1, 1])  # Equal width columns
+
                                     with col1:
-                                        st.markdown("##### 📈 Key Behavioral Differences")
-                                        if len(insights) > 1:
-                                            for insight in insights[1:4]:
-                                                st.markdown(f"<div class='highlight'>{insight}</div>",
-                                                            unsafe_allow_html=True)
-                                        else:
-                                            st.info("No significant behavioral differences found")
+                                        # Behavioral Differences
+                                        with st.container(border=True):
+                                            st.markdown("##### 📈 Key Differences")
+                                            insights = progression_summary(df, sid, best_peer)
+                                            if len(insights) > 1:
+                                                for insight in insights[1:4]:
+                                                    st.markdown(f"<div class='highlight'>{insight}</div>",
+                                                                unsafe_allow_html=True)
+                                            else:
+                                                st.info("No significant behavioral differences found")
+
+                                        # Visual Metrics
+                                        with st.container(border=True):
+                                            st.markdown("##### 📊 Activity Comparison")
+                                            comparisons = []
+                                            metrics = ['VideosWatched', 'QuizzesTaken',
+                                                       'PracticeSessions', 'MediaClicks']
+                                            for metric in metrics:
+                                                s1_val = int(current_data[metric].sum())
+                                                s2_val = int(df[df.StudentID == best_peer][metric].sum())
+                                                comparisons.append({
+                                                    'metric': metric.replace("Watched", "").replace("Taken", ""),
+                                                    'you': s1_val,
+                                                    'peer': s2_val
+                                                })
+
+                                            fig = go.Figure()
+                                            fig = go.Figure()
+                                            fig.add_trace(go.Bar(
+                                                x=[c['metric'] for c in comparisons],
+                                                y=[c['you'] for c in comparisons],
+                                                name='You',
+                                                marker=dict(
+                                                    color='#4CAF50',
+                                                    opacity=0.9
+                                                )
+                                            ))
+                                            fig.add_trace(go.Bar(
+                                                x=[c['metric'] for c in comparisons],
+                                                y=[c['peer'] for c in comparisons],
+                                                name=f'Peer {best_peer}',
+                                                marker=dict(
+                                                    color='#2196F3',
+                                                    opacity=0.9
+                                                )
+                                            ))
+                                            fig.update_layout(
+                                                barmode='group',
+                                                height=300,
+                                                margin=dict(t=0),
+                                                showlegend=True
+                                            )
+                                            st.plotly_chart(fig, use_container_width=True)
+
                                     with col2:
-                                        if len(insights) >= 1:
-                                            # Add topper resource tips
-                                            topper_tips = recommend_topper_resources(seg, df)
-                                            if topper_tips:
-                                                st.markdown("**💡 Top Performer Habits:**")
-                                                for tip in topper_tips[:2]:
-                                                    st.info(tip)
-                                        st.markdown("##### 🚀 Improvement Plan")
-                                        if len(insights) >= 1:
-                                            try:
-                                                # Display insights based on their prefixes
-                                                recommendation = next(
-                                                    (insight for insight in insights if "🚀" in insight), None)
-                                                if recommendation:
-                                                    st.markdown("**Priority Action:**")
-                                                    st.success(f"{recommendation}")
+                                        # Improvement Plan
+                                        with st.container(border=True):
+                                            st.markdown("##### 🚀 Action Plan")
+                                            if insights:
+                                                priority_action = next((i for i in insights if "🚀" in i), None)
+                                                if priority_action:
+                                                    st.markdown("###### Priority Recommendation")
+                                                    st.success(f"✨ {priority_action.split(': ')[-1]}")
+                                                    st.markdown("---")
 
-                                                # Display other insights
-                                                for insight in insights:
-                                                    if "🚀" not in insight and "🏆" not in insight:
-                                                        st.markdown(f"- {insight}")
-
-                                                # Extract metrics and values for visualization
-                                                metrics = []
-                                                values = []
+                                                st.markdown("###### Step-by-Step Strategy")
                                                 for insight in insights:
                                                     if "📊" in insight:
                                                         parts = insight.split(":")
                                                         if len(parts) > 1:
-                                                            metric = parts[0].replace("📊 ", "")
-                                                            # Extract the numerical value
-                                                            value_text = parts[1].strip()
-                                                            if "by" in value_text:
-                                                                try:
-                                                                    value = int(value_text.split("by ")[1].split()[0])
-                                                                    metrics.append(metric)
-                                                                    values.append(value)
-                                                                except (ValueError, IndexError):
-                                                                    continue
+                                                            st.markdown(
+                                                                f"- 🔹 **{parts[0].replace('📊 ', '')}**:{parts[1]}")
 
-                                                if metrics and values:
-                                                    fig = go.Figure()
-                                                    fig.add_trace(go.Bar(
-                                                        x=metrics,
-                                                        y=values,
-                                                        text=values,
-                                                        textposition='auto'
-                                                    ))
-                                                    fig.update_layout(
-                                                        title="Key Activity Differences",
-                                                        height=250
-                                                    )
-                                                    st.plotly_chart(fig, use_container_width=True)
-
-                                            except Exception as e:
-                                                st.error(f"Display error: {str(e)}")
-                                                # Fallback to raw insights display
-                                                st.markdown("**Key Findings:**")
-                                                for insight in insights:
-                                                    st.write(f"- {insight}")
-                                            else:
-                                                st.markdown("**General improvement tips:**")
+                                                st.markdown("---")
+                                                st.markdown("###### Pro Tips")
                                                 st.write("1. Balance different study activities")
-                                                st.write("2. Review foundational concepts weekly")
-                                                st.write("3. Track your time distribution")
+                                                st.write("2. Weekly foundational concept reviews")
+                                                st.write("3. Track time distribution with our planner")
+
+                                        # Top Performer Tips
+                                        with st.container(border=True):
+                                            st.markdown("##### 🏆 Top Performer Habits")
+                                            topper_tips = recommend_topper_resources(seg, df)
+                                            if topper_tips:
+                                                for tip in topper_tips[:2]:
+                                                    st.info(f"💡 {tip}")
+                                            else:
+                                                st.write("No top performer data available")
                                 else:
-                                    st.info("No peers found with >=20% performance gap")  # Changed threshold message
+                                    st.info("No peers found with ≥20% performance gap")
                             else:
                                 st.warning("Could not calculate peer differences")
                         else:
@@ -1626,6 +1658,28 @@ def main():
                         st.error(f"Comparison failed: {str(e)}")
                 else:
                     st.warning("Select a student to enable peer comparison")
+
+            # Add CSS styling
+            st.markdown("""
+                <style>
+                [data-testid="stExpander"] .st-emotion-cache-1q7spjk {
+                    width: 100% !important;
+                }
+                [data-testid="stHorizontalBlock"] {
+                    gap: 1rem;
+                }
+                .stMetric {
+                    border-left: 3px solid #4CAF50;
+                    padding-left: 1rem;
+                }
+                div[data-testid="metric-container"] {
+                    background-color: #f0f2f6;
+                    padding: 15px;
+                    border-radius: 10px;
+                }
+                </style>
+            """, unsafe_allow_html=True)
+
             # Quiz Section
             st.markdown('<p class="medium-font">Interactive Quiz Section</p>', unsafe_allow_html=True)
             try:
