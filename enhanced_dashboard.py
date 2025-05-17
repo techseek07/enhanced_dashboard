@@ -1250,6 +1250,7 @@ def analyze_item_level_performance(sid):
     return sorted(problem_questions, key=lambda x: x[3])
 
 
+
 # ==================================================================
 # 8. Streamlit UI
 # ==================================================================
@@ -1443,7 +1444,7 @@ def main():
                             "👍 Easy": [],
                             "💭 Quote": [],
                             "🌟 Topper_habit": [],  # For top performer strategies
-                            "👥 Peer": [] , # For collaborative filtering
+                            "👥 Peer": [],  # For collaborative filtering
                             "🚨 Needs Work": []  # New category for 20-39% accuracy
                         }
 
@@ -1460,7 +1461,7 @@ def main():
                             if not matched:
                                 rec_types["📚 Practice(less_than_70)"].append(r)
 
-                        # Display columns with improved grouping
+                        # Display columns with improved grouping - FIXED: Added all three columns
                         cols = st.columns(3)
 
                         # Column 1: Foundational Skills
@@ -1486,7 +1487,7 @@ def main():
                             for item in rec_types["📝 Quiz"]:
                                 st.warning(item, icon="❓")
                             # Top performer tips
-                            if rec_types["🌟 Top"]:
+                            if rec_types["🌟 Topper_habit"]:
                                 st.markdown("---")
                                 st.markdown("#### 🏅 Top Strategies")
                                 for item in rec_types["🌟 Topper_habit"]:
@@ -1498,7 +1499,7 @@ def main():
                                 for item in rec_types["👥 Peer"]:
                                     st.info(item, icon="👤")
 
-                        # Column 3: Engagement
+                        # Column 3: Engagement - FIXED: Re-added the missing Engagement column
                         with cols[2]:
                             st.markdown("### 🎯 Engagement")
                             # Motivation and media
@@ -1523,7 +1524,8 @@ def main():
 
                     except Exception as e:
                         st.error(f"Recommendation error: {str(e)}")
-            # Strategic Peer Comparison - Updated Layout
+
+            # Strategic Peer Comparison - FIXED: Improved Layout for better horizontal spacing
             with st.expander("🔍 Strategic Peer Comparison", expanded=True):
                 if not df.empty and sid is not None:
                     try:
@@ -1545,23 +1547,25 @@ def main():
                                 perf_gap = peer_diff.max()
 
                                 if perf_gap >= 0.2:
-                                    # Header Section
-                                    cols_header = st.columns([1, 3])
-                                    with cols_header[0]:
-                                        st.markdown(f"#### 🎯 Peer Comparison")
-                                        st.metric(label="Performance Gap",
-                                                  value=f"{perf_gap:.0%}",
-                                                  delta=f"vs Student {best_peer}")
-                                    with cols_header[1]:
-                                        st.caption(
-                                            f"**Comparison Criteria**: Similar start date (±40 days), >20% performance gap")
+                                    # Header Section - FIXED: Better header layout
+                                    st.markdown("#### 🎯 Peer Comparison")
+                                    st.caption(
+                                        f"**Comparison Criteria**: Similar start date (±40 days), >20% performance gap")
 
-                                    # Main Content Columns
-                                    col1, col2 = st.columns([1, 1])  # Equal width columns
+                                    # Performance Gap Metric - FIXED: Separated from header for better visibility
+                                    st.metric(label="Performance Gap",
+                                              value=f"{perf_gap:.0%}",
+                                              delta=f"vs Student {best_peer}")
+
+                                    # Add space
+                                    st.markdown("---")
+
+                                    # Main Content Columns - FIXED: Equal width columns
+                                    col1, col2 = st.columns([1, 1])
 
                                     with col1:
                                         # Behavioral Differences
-                                        with st.container(border=True):
+                                        with st.container(border=True, height=300):
                                             st.markdown("##### 📈 Key Differences")
                                             insights = progression_summary(df, sid, best_peer)
                                             if len(insights) > 1:
@@ -1586,7 +1590,6 @@ def main():
                                                     'peer': s2_val
                                                 })
 
-                                            fig = go.Figure()
                                             fig = go.Figure()
                                             fig.add_trace(go.Bar(
                                                 x=[c['metric'] for c in comparisons],
@@ -1615,8 +1618,8 @@ def main():
                                             st.plotly_chart(fig, use_container_width=True)
 
                                     with col2:
-                                        # Improvement Plan
-                                        with st.container(border=True):
+                                        # Improvement Plan - FIXED: Increased height for better alignment
+                                        with st.container(border=True, height=300):
                                             st.markdown("##### 🚀 Action Plan")
                                             if insights:
                                                 priority_action = next((i for i in insights if "🚀" in i), None)
@@ -1659,15 +1662,18 @@ def main():
                 else:
                     st.warning("Select a student to enable peer comparison")
 
-            # Add CSS styling
+            # Add CSS styling - FIXED: Improved spacing and container styling
             st.markdown("""
                 <style>
                 [data-testid="stExpander"] .st-emotion-cache-1q7spjk {
                     width: 100% !important;
                 }
+                /* Fix for horizontal spacing between columns */
                 [data-testid="stHorizontalBlock"] {
                     gap: 1rem;
+                    width: 100%;
                 }
+                /* Better metrics styling */
                 .stMetric {
                     border-left: 3px solid #4CAF50;
                     padding-left: 1rem;
@@ -1676,6 +1682,18 @@ def main():
                     background-color: #f0f2f6;
                     padding: 15px;
                     border-radius: 10px;
+                }
+                /* Container spacing and alignment */
+                div[data-testid="stVerticalBlock"] > div {
+                    padding-bottom: 0.5rem;
+                }
+                /* Consistent heights for better alignment */
+                div.element-container {
+                    margin-bottom: 0.5rem;
+                }
+                /* Better highlight styling */
+                .highlight {
+                    margin-bottom: 8px;
                 }
                 </style>
             """, unsafe_allow_html=True)
@@ -1891,34 +1909,58 @@ def main():
 
                     with tab3:
                         usage_data = student_data.groupby('Topic').agg({
-                            'VideosWatched': 'sum', 'QuizzesTaken': 'sum',
-                            'PracticeSessions': 'sum', 'MediaClicks': 'sum'
+                            'VideosWatched': 'sum',
+                            'QuizzesTaken': 'sum',
+                            'PracticeSessions': 'sum',
+                            'MediaClicks': 'sum'
                         }).reset_index()
 
                         if not usage_data.empty:
                             fig = go.Figure()
-                            # Map the correct column names to their display names
-                            columns_map = {
-                                'VideosWatched': 'Videos',
-                                'QuizzesTaken': 'Quizzes',
-                                'PracticeSessions': 'Practice',
-                                'MediaClicks': 'Media'
-                            }
-                            colors = {'Videos': '#1f77b4', 'Quizzes': '#ff7f0e',
-                                      'Practice': '#2ca02c', 'Media': '#d62728'}
+                            # Add traces for each metric with consistent colors
+                            fig.add_trace(go.Bar(
+                                x=usage_data['Topic'],
+                                y=usage_data['VideosWatched'],
+                                name='Videos',
+                                marker=dict(color='#2196F3')
+                            ))
+                            fig.add_trace(go.Bar(
+                                x=usage_data['Topic'],
+                                y=usage_data['QuizzesTaken'],
+                                name='Quizzes',
+                                marker=dict(color='#4CAF50')
+                            ))
+                            fig.add_trace(go.Bar(
+                                x=usage_data['Topic'],
+                                y=usage_data['PracticeSessions'],
+                                name='Practice',
+                                marker=dict(color='#FF9800')
+                            ))
+                            fig.add_trace(go.Bar(
+                                x=usage_data['Topic'],
+                                y=usage_data['MediaClicks'],
+                                name='Media',
+                                marker=dict(color='#9C27B0')
+                            ))
 
-                            for db_col, display_name in columns_map.items():
-                                fig.add_trace(go.Bar(
-                                    x=usage_data['Topic'],
-                                    y=usage_data[db_col],
-                                    name=display_name,
-                                    marker_color=colors[display_name]
-                                ))
-                            fig.update_layout(barmode='stack', height=400)
+                            # Update layout for stacked bar chart
+                            fig.update_layout(
+                                barmode='stack',
+                                title='Study Activity Distribution',
+                                xaxis_title='Topics',
+                                yaxis_title='Total Activities',
+                                height=400,
+                                legend=dict(
+                                    orientation="h",
+                                    yanchor="bottom",
+                                    y=1.02,
+                                    xanchor="right",
+                                    x=1
+                                )
+                            )
                             st.plotly_chart(fig, use_container_width=True)
         except Exception as e:
-            st.error(f"Analytics error: {str(e)}")
-
+         st.error(f"Analytics error: {str(e)}")
         # Question-Level Analytics
         st.markdown('<p class="medium-font">Question-Level Analytics</p>', unsafe_allow_html=True)
         try:
