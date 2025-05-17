@@ -890,25 +890,48 @@ def update_knowledge_graph_with_quiz(G, sid, topic):
 
 
 # Modified version of the quiz submission handler
-def process_quiz_submission(sid, topic):
-    """Process quiz submission and store responses"""
-    try:
-        # Initialize response structures if not present
-        if 'quiz_responses' not in st.session_state:
-            st.session_state.quiz_responses = {}
-        if 'question_responses' not in st.session_state:
-            st.session_state.question_responses = {}
+        def process_quiz_submission(sid, topic):
+            try:
+                # Initialize structures
+                if 'quiz_responses' not in st.session_state:
+                    st.session_state.quiz_responses = {}
+                if sid not in st.session_state.quiz_responses:
+                    st.session_state.quiz_responses[sid] = {}
 
-        # Initialize student-specific structures
-        if sid not in st.session_state.quiz_responses:
-            st.session_state.quiz_responses[sid] = {}
-        if sid not in st.session_state.question_responses:
-            st.session_state.question_responses[sid] = {}
+                # Clear previous responses for this topic to avoid duplicates
+                st.session_state.quiz_responses[sid][topic] = []
 
-        # Validate topic again (defense in depth)
-        if topic not in FORMULA_QUIZ_BANK:
-            st.error("Invalid quiz topic selected")
-            return False
+                # Process questions
+                for sub, questions in FORMULA_QUIZ_BANK[topic].items():
+                    for q in questions:
+                        q_key = f"q_{topic}_{q['id']}"
+                        student_answer = st.session_state.get(q_key, "")
+
+                        # Validate answer
+                        is_correct, feedback = validate_answer(q, student_answer)
+
+                        # Store response in ONE place only
+                        st.session_state.quiz_responses[sid][topic].append({
+                            "qid": q['id'],
+                            "answer": student_answer,
+                            "is_correct": is_correct,
+                            "timestamp": datetime.now().isoformat(),
+                            "feedback": feedback
+                        })
+
+                        # Update question response tracking silently (no double tracking)
+                        if 'question_responses' not in st.session_state:
+                            st.session_state.question_responses = {}
+                        if sid not in st.session_state.question_responses:
+                            st.session_state.question_responses[sid] = {}
+                        if q['id'] not in st.session_state.question_responses[sid]:
+                            st.session_state.question_responses[sid][q['id']] = []
+                        st.session_state.question_responses[sid][q['id']].append(int(is_correct))
+
+                return True
+            except Exception as e:
+                st.error(f"Error processing quiz: {str(e)}")
+                return False
 
         # Clear any previous responses for this topic to avoid duplicates
         st.session_state.quiz_responses[sid][topic] = []
@@ -1257,7 +1280,12 @@ def get_quiz_recommendations(sid, completed):
 
             # Check if there are more subtopics available
             if p < len(subs):
-                rec.append(f"📝 Quiz Alert: {subs[p]} ({t})")
+                # Add context for the recommendation
+                if p == 0:
+                    context = "Get started with your first quiz"
+                else:
+                    context = f"Continue progress ({p}/{len(subs)} completed)"
+                rec.append(f"📝 Quiz Alert: {subs[p]} ({t}) - {context}")
             else:
                 # All subtopics completed
                 # Get mastery from graph
@@ -1316,13 +1344,16 @@ def get_recommendations(sid, df, G, seg, mot='High'):
             if t in HOTS_QUESTIONS:
                 rec.append(f"🧠 HOTS {t} (Strong topic): {', '.join(HOTS_QUESTIONS[t][:2])}")
 
-    # 4) Practice recommendations using knowledge graph relationships instead of just completed topics
+    # 4) Practice recommendations using knowledge graph relationships and completion data
     practice_candidates = []
 
     # First, add completed topics (direct practice)
     for t in comp[:3]:
         if t in PRACTICE_QUESTIONS:
-            practice_candidates.append((t, 3.0, "completed"))  # Base priority for completed topics
+            # Flag recently completed topics with higher priority
+            is_recent = t in df[df.StudentID == sid].sort_values('ExamDate', ascending=False).head(3).Topic.values
+            priority = 4.0 if is_recent else 3.0
+            practice_candidates.append((t, priority, "completed", "Recently completed" if is_recent else "Completed"))
 
     # Second, add topics with strong graph relationships
     for t in comp:
@@ -1337,24 +1368,39 @@ def get_recommendations(sid, df, G, seg, mot='High'):
                         priority = min(edge_data['weight'], 5.0) / 2  # Scale to 0.5-2.5
                     relation = edge_data.get('relation', 'other')
 
-                    # Boost priority based on relationship type
-                    if relation in ['prereq', 'application']:
+                    # Generate explanatory context based on relationship type
+                    context = ""
+                    if relation == 'prereq':
+                        context = "Prerequisite for future topics"
                         priority += 1.0
-                    elif relation in ['subtopic']:
+                    elif relation == 'application':
+                        context = "Practical application area"
+                        priority += 1.0
+                    elif relation == 'subtopic':
+                        context = "Important subtopic to master"
                         priority += 0.5
+                    elif relation == 'odds_ratio':
+                        context = "Statistically related concept"
+                        priority += 0.8
+                    elif relation == 'shap_importance':
+                        context = "High-impact concept"
+                        priority += 0.7
+                    else:
+                        context = "Connected concept"
 
-                    practice_candidates.append((connected_topic, priority, relation))
+                    practice_candidates.append((connected_topic, priority, relation, context))
 
     # Sort by priority and recommend top 3
     practice_candidates.sort(key=lambda x: x[1], reverse=True)
-    for t, priority, relation in practice_candidates[:3]:
+    for t, priority, relation, context in practice_candidates[:3]:
         if t in PRACTICE_QUESTIONS:
             pq = PRACTICE_QUESTIONS[t]
             seq = pq.get('recent', []) + pq.get('historical', []) + pq.get('fundamental', [])
-            relation_note = ""
-            if relation != "completed":  # Not a directly completed topic
-                relation_note = f" ({relation} to {t})"
-            rec.append(f"📚 Practice {t}{relation_note}: {', '.join(seq[:3])}")
+
+            # Build recommendation with context explanation
+            importance = "❗❗" if priority > 3.5 else "❗" if priority > 2.5 else ""
+            rec.append(f"📚 Practice {t}{importance}: {', '.join(seq[:3])} - {context}")
+
     # 5) Quiz recommendations
     quiz_recs = get_quiz_recommendations(sid, comp)
     rec.extend(quiz_recs[:2])
@@ -1587,7 +1633,7 @@ def main():
         mood_options = ['High', 'Medium', 'Low']
         default_idx = mood_options.index(current_mot)
         override_mot = st.sidebar.selectbox(
-            "Override Motivation Level",
+            " Motivation Level",
             mood_options,
             index=default_idx,
             key="override_mot"
