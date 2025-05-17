@@ -155,27 +155,32 @@ PRACTICE_QUESTIONS = {
     'Algebra': {
         'recent': ['Factoring Polynomials', 'Solving Quadratics'],
         'historical': ['Linear Equations', 'Basic Operations'],
-        'fundamental': ['Number Sense', 'Order of Operations']
+        'fundamental': ['Number Sense', 'Order of Operations'],
+        'mid_level': ['Rational Expressions', 'Systems of Equations']
     },
     'Geometry': {
         'recent': ['Triangle Congruence', 'Circle Theorems'],
         'historical': ['Angle Relationships', 'Pythagorean Theorem'],
-        'fundamental': ['Basic Shapes', 'Area Formulas']
+        'fundamental': ['Basic Shapes', 'Area Formulas'],
+        'mid_level': ['Coordinate Geometry', 'Mensuration (2D)']
     },
     'Calculus': {
         'recent': ['Derivative Rules', 'Integration Techniques'],
         'historical': ['Limits', 'Continuity'],
-        'fundamental': ['Function Behavior', 'Graphing']
+        'fundamental': ['Function Behavior', 'Graphing'],
+        'mid_level': ['Applications of Derivatives', 'Basic Integration']
     },
     'Chemistry': {
         'recent': ['Balancing Equations', 'Stoichiometry'],
         'historical': ['Periodic Table', 'Chemical Bonds'],
-        'fundamental': ['States of Matter', 'Element Properties']
+        'fundamental': ['States of Matter', 'Element Properties'],
+        'mid_level': ['Solutions', 'Electrochemistry']
     },
     'Biology': {
         'recent': ['Cell Division', 'Heredity'],
         'historical': ['Cell Structure', 'Classification'],
-        'fundamental': ['Life Processes', 'Scientific Method']
+        'fundamental': ['Life Processes', 'Scientific Method'],
+        'mid_level': ['Genetics', 'Ecology and Environment']
     }
 }
 
@@ -914,6 +919,34 @@ def update_knowledge_graph_with_quiz(G, sid, topic):
 
     except Exception as e:
         st.error(f"Knowledge graph update failed: {str(e)}")
+
+
+def get_connected_practice_topics(G, completed_topics, sid):
+    """Get topics connected to completed ones with tier 1/2 edges"""
+    practice_topics = []
+
+    # Edge tier mapping (1=strong, 2=medium, 3=weak)
+    for t in completed_topics:
+        # Get neighbors with strong/medium connections
+        neighbors = []
+        for _, neighbor, data in G.out_edges(t, data=True):
+            if data.get('tier', 3) in [1, 2]:  # Only strong/medium tiers
+                neighbors.append((neighbor, data.get('weight', 1)))
+
+        # Sort by connection strength
+        neighbors.sort(key=lambda x: -x[1])
+        practice_topics.extend([n[0] for n in neighbors[:2]])  # Top 2 per topic
+
+    # Get unique topics with completion status
+    return [t for t in practice_topics
+            if t in completed_topics][:3]  # Max 3 recommendations
+def get_connection_strength(G, topic, completed):
+    """Calculate average edge strength from completed topics"""
+    strengths = []
+    for ct in completed:
+        if G.has_edge(ct, topic):
+            strengths.append(G[ct][topic].get('weight', 1))
+    return f"{np.mean(strengths):.1f}/5" if strengths else "N/A"
 # ==================================================================
 # 4. Collaborative Filtering & Peer Tutoring
 # ==================================================================
@@ -1025,19 +1058,36 @@ def suggest_peer_tutoring(sid, df, seg):
 # ==================================================================
 # 5. Quiz Helpers
 # ==================================================================
-def get_quiz_recommendations(sid, completed):
+def get_quiz_recommendations(sid, sd):
+    """Recommend quizzes for completed topics with accuracy <35%"""
     rec = []
 
-    # Only recommend topics the student has completed
-    for t in completed:
-        if t in FORMULA_QUIZ_BANK:
-            # Get current progress or default to 0
+    # Get completed topics with performance data
+    completed_topics = sd[sd.Completed].Topic.unique()
+    topic_perf = sd.groupby('Topic').Correct.mean()
+
+    for t in completed_topics:
+        # Calculate performance (default to 100% if no data)
+        accuracy = topic_perf.get(t, 1.0)
+
+        if t in FORMULA_QUIZ_BANK and accuracy < 0.35:
+            # Get current quiz progress
             p = st.session_state.quiz_progress.setdefault(sid, {}).get(t, 0)
             subs = list(FORMULA_QUIZ_BANK[t].keys())
 
-            # Recommend next subtopic if available
+            # Format performance message
+            perf_message = f"(You scored {accuracy:.1%} - needs practice)"
+
             if p < len(subs):
-                rec.append(f"📝 Quiz Alert: {subs[p]} ({t})")
+                rec.append(
+                    f"📝 **Priority Quiz**: {subs[p]} ({t}) "
+                    f"<span style='color: red'>{perf_message}</span>"
+                )
+            else:
+                rec.append(
+                    f"🎯 **Review Complete**: {t} quizzes "
+                    f"<span style='color: green'>(Mastery: {accuracy:.1%})</span>"
+                )
 
     return rec
 
@@ -1071,30 +1121,58 @@ def get_recommendations(sid, df, G, seg, mot='High'):
         if selected_topic in MOTIVATION_QUOTES:
             rec.append(f"💭 \"{MOTIVATION_QUOTES[selected_topic]}\"")
 
-    # 2) Bridge course recommendations for low‐accuracy topics
-    low_topics = acc[acc < 0.3].index.tolist()
-    for t in low_topics:
+    # 2) Bridge course recommendations for critical low-accuracy topics
+    critical_low_topics = acc[acc < 0.2].index.tolist()
+    for t in critical_low_topics:
         if t in BRIDGE_COURSES:
-            rec.append(f"🚧 Bridge: {t} - {BRIDGE_COURSES[t]}")
+            rec.append(f"🚨 **Urgent Focus Needed**: {t} - {BRIDGE_COURSES[t]} [Accuracy: {acc[t]:.0%}]")
         else:
-            rec.append(f"🚧 Bridge: {t}")
+            rec.append(f"🚨 **Urgent Focus Needed**: {t} [Accuracy: {acc[t]:.0%}]")
 
-    # 3) HOTS for high‐accuracy topics (unless motivation is Low)
+    # 3) HOTS for strong topics (accuracy >=70% and motivation not Low)
     if mot != 'Low':
-        high_topics = acc[acc > 0.7].index.tolist()
-        for t in high_topics[:2]:
+        strong_topics = acc[acc >= 0.7].index.tolist()
+        for t in strong_topics[:2]:  # Limit to 2 strongest
             if t in HOTS_QUESTIONS:
-                rec.append(f"🧠 HOTS {t}: {', '.join(HOTS_QUESTIONS[t][:2])}")
-
-    # 4) Practice recommendations for up to 3 completed topics
-    for t in comp[:3]:
+                rec.append(
+                    f"🏆 **Strong Area**: {t} (Accuracy: {acc[t]:.0%}) - "
+                    f"Try: {', '.join(HOTS_QUESTIONS[t][:2])}"
+                )
+    # 4) Mid-strong practice recommendations (40-70% accuracy)
+    mid_strength_topics = acc[(acc >= 0.4) & (acc < 0.7)].index.tolist()
+    for t in mid_strength_topics[:3]:  # Take top 3 mid-strength
         if t in PRACTICE_QUESTIONS:
             pq = PRACTICE_QUESTIONS[t]
-            seq = pq.get('recent', []) + pq.get('historical', []) + pq.get('fundamental', [])
-            rec.append(f"📚 Practice {t}: {', '.join(seq[:3])}")
+            # Prioritize mid-level questions first
+            seq = pq.get('mid_level', []) + pq.get('recent', []) + pq.get('historical', [])
+            rec.append(
+                f"📚 **Practice Zone**: {t} (Accuracy: {acc[t]:.0%}) - "
+                f"Focus on: {', '.join(seq[:3])}"
+            )
+    if comp:
+        connected_topics = get_connected_practice_topics(G, comp, sid)
+
+        if not connected_topics:  # Fallback to recent completion
+            connected_topics = comp[:3]
+            connection_note = " (newly completed)"
+        else:
+            connection_note = " (connected concepts)"
+
+        for t in connected_topics:
+            if t in PRACTICE_QUESTIONS:
+                pq = PRACTICE_QUESTIONS[t]
+                # Priority: recent > mid_level > historical > fundamental
+                seq = pq.get('recent', []) + pq.get('mid_level', []) + \
+                      pq.get('historical', []) + pq.get('fundamental', [])
+
+                rec.append(
+                    f"📚 Practice {t}{connection_note}: " +
+                    f"{', '.join(seq[:3])} " +
+                    f"[Connection strength: {get_connection_strength(G, t, comp)}]"
+                )
 
     # 5) Quiz recommendations
-    quiz_recs = get_quiz_recommendations(sid, comp)
+    quiz_recs = get_quiz_recommendations(sid, sd)
     rec.extend(quiz_recs[:2])
 
     # 6) Media & analogies
@@ -1110,27 +1188,13 @@ def get_recommendations(sid, df, G, seg, mot='High'):
         if m.get('analogies'):
             rec.append(f"🔗 Analogy: {m['analogies']}")
 
-    # 7) Formula revision materials for low‐performing topics
-    for t in low_topics[:2]:
-        if t in FORMULA_REVISION:
-            rec.append(f"📊 Formula Help {t}: {', '.join(FORMULA_REVISION[t][:2])}")
+
 
     # 8) Easy‐win topics if motivation is Low
     if mot == 'Low' and comp:
         easy_topic = np.random.choice(comp)
         if easy_topic in EASY_TOPICS:
             rec.append(f"👍 Easy Win: {easy_topic} - {EASY_TOPICS[easy_topic][0]}")
-
-    # 9) Subtopic & application recommendations per completed topic
-    for t in comp:
-        # a) subtopics that need focus (only for low topics)
-        if t in low_topics:
-            subs = [
-                v for _, v, d in G.out_edges(t, data=True)
-                if d.get('relation') == 'subtopic'
-            ]
-            if subs:
-                rec.append(f"🔧 Subtopics to review in {t}: {', '.join(subs[:3])}")
 
         # b) collaborative filtering suggestions
         collab_recs = collaborative_filtering_recommendations(sid, df, seg)
@@ -1184,7 +1248,7 @@ def analyze_item_level_performance(sid):
     problem_questions = []
 
     for q_id, attempts in responses.items():
-        if len(attempts) >= 2:
+        if len(attempts) >= 1:
             success_rate = sum(attempts) / len(attempts)
             if success_rate < 0.5:
                 # Find question details
@@ -1386,42 +1450,103 @@ def main():
                 except Exception as e:
                     st.error(f"Graph display error: {str(e)}")
 
-        # Recommendations Panel
-        with col2:
-            st.markdown('<p class="medium-font">Personalized Learning Recommendations</p>', unsafe_allow_html=True)
-            if sid is not None:
-                try:
-                    recommendations = get_recommendations(sid, df, G, seg, override_mot)
-                    rec_types = {
-                        "🚧 Bridge": [], "🧠 HOTS": [], "📚 Practice": [],
-                        "📝 Quiz": [],  "🎥 Media": [],  "🔗 Analogy": [],
-                        "📊 Formula": [], "🔧 Subtopics": [], "🔄 Apply": [],
-                        "👍 Easy Win": [], "💭 Quote": []
-                    }
-                    for r in recommendations:
-                        for prefix in rec_types:
-                            if r.startswith(prefix):
-                                rec_types[prefix].append(r)
-                                break
-                    cols = st.columns(3)
-                    with cols[0]:
-                        st.markdown("### Study Plan")
-                        for item in rec_types["🚧 Bridge"] + rec_types["📚 Practice"] + rec_types["📊 Formula"]:
-                            st.info(item)
-                    with cols[1]:
-                        st.markdown("### Challenges")
-                        for item in rec_types["🧠 HOTS"] + rec_types["📝 Quiz"] + rec_types["🔧 Subtopics"]:
-                            st.success(item)
-                    with cols[2]:
-                        st.markdown("### Engagement")
-                        for item in rec_types["💭 Quote"]:
-                            st.markdown(f'<div class="highlight">{item}</div>', unsafe_allow_html=True)
-                        for item in rec_types["🎥 Media"] + rec_types["🔗 Analogy"] + rec_types["🔄 Apply"] + rec_types["👍 Easy Win"]:
-                            st.warning(item)
-                except Exception as e:
-                    st.error(f"Recommendation error: {str(e)}")
+            # Recommendations Panel
+            with col2:
+                st.markdown('<p class="medium-font">Personalized Learning Recommendations</p>', unsafe_allow_html=True)
+                if sid is not None:
+                    try:
+                        recommendations = get_recommendations(sid, df, G, seg, override_mot)
 
+                        # Categorization dictionary with priority order
+                        rec_types = {
+                            "🚨 Urgent": [],
+                            "🏆 Strong": [],
+                            "📚 Practice": [],
+                            "📝 Quiz": [],
+                            "🎥 Media": [],
+                            "🔗 Analogy": [],
+                            "📊 Formula": [],
+                            "🔧 Weak": [],
+                            "🔄 Apply": [],
+                            "👍 Easy": [],
+                            "💭 Quote": [],
+                            "🌟 Top": []
+                        }
 
+                        # Categorize recommendations using substring matching
+                        for r in recommendations:
+                            matched = False
+                            for prefix in rec_types:
+                                if prefix in r:
+                                    rec_types[prefix].append(r)
+                                    matched = True
+                                    break
+                            if not matched:  # Fallback for uncategorized
+                                rec_types["📚 Practice"].append(r)
+
+                        # Display columns with logical grouping
+                        cols = st.columns(3)
+
+                        # Column 1: Foundational Skills
+                        with cols[0]:
+                            st.markdown("### 📘 Study Plan")
+                            # Urgent needs first
+                            for item in rec_types["🚨 Urgent"]:
+                                st.error(item, icon="🚨")
+                            # Formula help
+                            for item in rec_types["📊 Formula"]:
+                                st.info(item, icon="📊")
+                            # Basic practice
+                            for item in rec_types["📚 Practice"]:
+                                st.info(item, icon="📚")
+                            # Easy wins
+                            for item in rec_types["👍 Easy"]:
+                                st.success(item, icon="👍")
+
+                        # Column 2: Skill Development
+                        with cols[1]:
+                            st.markdown("### 💪 Challenges")
+                            # Strong areas
+                            for item in rec_types["🏆 Strong"]:
+                                st.success(item, icon="✅")
+                            # Weak subtopics
+                            for item in rec_types["🔧 Weak"]:
+                                st.warning(item, icon="🔧")
+                            # Quizzes
+                            for item in rec_types["📝 Quiz"]:
+                                st.warning(item, icon="📝")
+                            # Collaborative filtering
+                            if rec_types["🌟 Top"]:
+                                st.markdown("---")
+                                st.markdown("#### 🏅 Top Performer Tips")
+                                for item in rec_types["🌟 Top"]:
+                                    st.info(item, icon="⭐")
+
+                        # Column 3: Engagement
+                        with cols[2]:
+                            st.markdown("### 🎯 Engagement")
+                            # Motivation
+                            for item in rec_types["💭 Quote"]:
+                                st.markdown(f'''
+                                <div class="highlight" style="border-left: 3px solid #4CAF50; padding: 10px">
+                                    ✨ {item.replace("💭 ", "")}
+                                </div>
+                                ''', unsafe_allow_html=True)
+                            # Media
+                            if rec_types["🎥 Media"]:
+                                st.markdown("---")
+                                st.markdown("#### 🎬 Learning Media")
+                                for item in rec_types["🎥 Media"]:
+                                    st.video(item.split(": ")[-1])  # Assumes video URL is last part
+                            # Applications
+                            for item in rec_types["🔄 Apply"]:
+                                st.success(item, icon="🔗")
+                            # Analogies
+                            for item in rec_types["🔗 Analogy"]:
+                                st.info(item, icon="💡")
+
+                    except Exception as e:
+                        st.error(f"Recommendation error: {str(e)}")
         # Strategic Peer Comparison
             with st.expander("🔍 Strategic Peer Comparison", expanded=True):
                 if not df.empty and sid is not None:
