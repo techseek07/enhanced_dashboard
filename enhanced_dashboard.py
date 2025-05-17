@@ -825,22 +825,45 @@ def apply_dual_tier_scoring(G):
 
 
 def update_knowledge_graph_with_quiz(G, sid, topic):
-    """More impactful graph updates"""
+    """More impactful graph updates with debugging"""
     try:
+        # DEBUG: Check if quiz responses exist
+        if 'quiz_responses' not in st.session_state:
+            st.error("No quiz_responses in session state")
+            st.session_state.quiz_responses = {}
+
+        # DEBUG: Check if sid exists in quiz responses
+        if sid not in st.session_state.quiz_responses:
+            st.error(f"No responses for student {sid}")
+            st.session_state.quiz_responses[sid] = {}
+
+        # DEBUG: Check if topic exists in quiz responses for sid
+        if topic not in st.session_state.quiz_responses.get(sid, {}):
+            st.error(f"No responses for topic {topic}")
+            st.session_state.quiz_responses[sid][topic] = []
+
+        # Get responses with fallback
         responses = st.session_state.quiz_responses.get(sid, {}).get(topic, [])
 
-        # 1. Safer mastery calculation
+        # DEBUG: Print responses for debugging
+        st.write(f"DEBUG - Found {len(responses)} responses for {topic}")
+        if len(responses) > 0:
+            st.write(f"First response: {responses[0]}")
+
+        # Safer mastery calculation with better fallback
         total = len(responses)
         if total == 0:
             st.warning(f"No quiz responses found for {topic}")
-            return
+            # Set default mastery to 0
+            mastery = 0
+        else:
+            # Calculate mastery from responses
+            correct_count = sum(1 for r in responses if r.get('is_correct', False))
+            mastery = correct_count / total
+            mastery = min(max(mastery, 0), 1)  # Clamp between 0-1
+            st.write(f"DEBUG - Correct answers: {correct_count}/{total}")
 
-        mastery = sum(1 for r in responses if r.get('is_correct', False)) / total
-        mastery = min(max(mastery, 0), 1)  # Clamp between 0-1
-
-        # 2. Safe node updates - THIS IS THE FIX
-        # G is a NetworkX DiGraph object, not a dictionary
-        # We need to update node attributes, not use dictionary assignment
+        # Update node in graph
         if not G.has_node(topic):
             G.add_node(topic, type='topic', mastery=mastery, last_attempt=datetime.now().isoformat())
         else:
@@ -851,46 +874,47 @@ def update_knowledge_graph_with_quiz(G, sid, topic):
         # Only show the success message once
         st.success(f"Updated mastery for {topic} to {int(mastery * 100)}%")
 
-        # 3. Robust subtopic processing
-        seen_subtopics = set()
-        subtopic_weights = Counter()
+        # Only continue with subtopic processing if we have responses
+        if total > 0:
+            # Process subtopics
+            seen_subtopics = set()
+            subtopic_weights = Counter()
 
-        # Merge question banks to find matching questions
-        # First try to find the question in FORMULA_QUIZ_BANK
-        all_questions = []
-        if topic in FORMULA_QUIZ_BANK:
-            for sub, questions in FORMULA_QUIZ_BANK[topic].items():
-                all_questions.extend(questions)
+            # Find all questions that match the topic
+            all_questions = []
+            if topic in FORMULA_QUIZ_BANK:
+                for sub, questions in FORMULA_QUIZ_BANK[topic].items():
+                    all_questions.extend(questions)
 
-        for response in responses:
-            try:
-                # First look in FORMULA_QUIZ_BANK flattened questions
-                question = next((q for q in all_questions if q['id'] == response['qid']), None)
+            for response in responses:
+                try:
+                    # First look in FORMULA_QUIZ_BANK flattened questions
+                    question = next((q for q in all_questions if q['id'] == response['qid']), None)
 
-                # Fallback to QUESTION_BANK if not found
-                if not question and topic in QUESTION_BANK:
-                    question = next((q for q in QUESTION_BANK[topic] if q['id'] == response['qid']), None)
+                    # Fallback to QUESTION_BANK if not found
+                    if not question and topic in QUESTION_BANK:
+                        question = next((q for q in QUESTION_BANK[topic] if q['id'] == response['qid']), None)
 
-                if not question:
-                    st.warning(f"Missing question: {response['qid']}")
+                    if not question:
+                        st.warning(f"Missing question: {response['qid']}")
+                        continue
+
+                    # Process subtopics from either question format
+                    for i in (1, 2, 3):
+                        subtopic = question.get(f'subtopic{i}')
+                        if subtopic:
+                            subtopic_weights[subtopic] += int(response.get('is_correct', 0))
+
+                except Exception as e:
+                    st.warning(f"Error processing response: {str(e)}")
                     continue
 
-                # 5. Process subtopics from either question format
-                for i in (1, 2, 3):
-                    subtopic = question.get(f'subtopic{i}')
-                    if subtopic:
-                        subtopic_weights[subtopic] += int(response.get('is_correct', 0))
-
-            except Exception as e:
-                st.warning(f"Error processing response: {str(e)}")
-                continue
-
-        # 6. Safe edge creation
-        for subtopic, weight in subtopic_weights.most_common(2):
-            if not G.has_node(subtopic):
-                G.add_node(subtopic, type='subtopic')
-                seen_subtopics.add(subtopic)
-            G.add_edge(topic, subtopic, relation='subtopic', weight=weight)
+            # Safe edge creation
+            for subtopic, weight in subtopic_weights.most_common(2):
+                if not G.has_node(subtopic):
+                    G.add_node(subtopic, type='subtopic')
+                    seen_subtopics.add(subtopic)
+                G.add_edge(topic, subtopic, relation='subtopic', weight=weight)
 
         # Update quiz progress in a separate session state
         if 'quiz_progress' not in st.session_state:
@@ -907,6 +931,141 @@ def update_knowledge_graph_with_quiz(G, sid, topic):
         st.error(f"Knowledge graph update failed: {str(e)}")
         import traceback
         st.error(traceback.format_exc())
+
+
+# Modified version of the quiz submission handler
+def process_quiz_submission(sid, topic):
+    """Process quiz submission and store responses"""
+    try:
+        # Initialize response structures if not present
+        if 'quiz_responses' not in st.session_state:
+            st.session_state.quiz_responses = {}
+        if 'question_responses' not in st.session_state:
+            st.session_state.question_responses = {}
+
+        # Initialize student-specific structures
+        if sid not in st.session_state.quiz_responses:
+            st.session_state.quiz_responses[sid] = {}
+        if sid not in st.session_state.question_responses:
+            st.session_state.question_responses[sid] = {}
+
+        # Validate topic again (defense in depth)
+        if topic not in FORMULA_QUIZ_BANK:
+            st.error("Invalid quiz topic selected")
+            return False
+
+        # Clear any previous responses for this topic to avoid duplicates
+        st.session_state.quiz_responses[sid][topic] = []
+
+        # Process all questions with the new error handling
+        for sub, questions in FORMULA_QUIZ_BANK[topic].items():
+            for q in questions:
+                q_key = f"q_{topic}_{q['id']}"
+                student_answer = st.session_state.get(q_key, "")
+
+                # Validate answer directly using the question from FORMULA_QUIZ_BANK
+                is_correct, feedback = validate_answer(q, student_answer)
+
+                # Track response
+                track_question_response(sid, q['id'], is_correct)
+
+                # Store detailed response
+                st.session_state.quiz_responses[sid][topic].append({
+                    "qid": q['id'],
+                    "answer": student_answer,
+                    "is_correct": is_correct,
+                    "timestamp": datetime.now().isoformat(),
+                    "feedback": feedback
+                })
+
+        # Log the responses for debugging
+        response_count = len(st.session_state.quiz_responses[sid][topic])
+        correct_count = sum(1 for r in st.session_state.quiz_responses[sid][topic] if r.get('is_correct', False))
+        st.write(f"DEBUG - Processed {response_count} responses with {correct_count} correct")
+
+        return True
+
+    except Exception as e:
+        st.error(f"Error processing quiz: {str(e)}")
+        import traceback
+        st.error(traceback.format_exc())
+        return False
+
+
+def validate_answer(question, student_answer):
+    """
+    Validate a student's answer against the expected answer.
+
+    Args:
+        question: Question dictionary with 'answer' key
+        student_answer: The student's submitted answer
+
+    Returns:
+        tuple: (is_correct, feedback)
+    """
+    try:
+        if question['type'] == 'formula':
+            # For formula questions, normalize and compare
+            expected_answer = str(question.get('answer', '')).strip().lower()
+            student_answer = str(student_answer).strip().lower()
+
+            # Basic normalization for formula comparison
+            expected_normalized = expected_answer.replace(" ", "").replace("*", "")
+            student_normalized = student_answer.replace(" ", "").replace("*", "")
+
+            is_correct = (expected_normalized == student_normalized)
+
+            if is_correct:
+                feedback = "Correct! Good job."
+            else:
+                feedback = f"Incorrect. The correct answer is: {question.get('answer', 'Unknown')}"
+
+        else:  # Multiple choice
+            # For multiple choice, direct comparison
+            correct_option = question.get('answer', '')
+            is_correct = (student_answer == correct_option)
+
+            if is_correct:
+                feedback = "Correct! Good job."
+            else:
+                feedback = f"Incorrect. The correct answer is: {correct_option}"
+
+        return is_correct, feedback
+
+    except Exception as e:
+        st.error(f"Error validating answer: {str(e)}")
+        return False, f"Error validating answer: {str(e)}"
+
+
+def track_question_response(sid, question_id, is_correct):
+    """
+    Track student responses to questions for analytics.
+
+    Args:
+        sid: Student ID
+        question_id: Question identifier
+        is_correct: Whether the answer was correct
+    """
+    try:
+        if 'question_responses' not in st.session_state:
+            st.session_state.question_responses = {}
+
+        if sid not in st.session_state.question_responses:
+            st.session_state.question_responses[sid] = {}
+
+        if question_id not in st.session_state.question_responses[sid]:
+            st.session_state.question_responses[sid][question_id] = {
+                'attempts': 0,
+                'correct': 0
+            }
+
+        # Update question response tracking
+        st.session_state.question_responses[sid][question_id]['attempts'] += 1
+        if is_correct:
+            st.session_state.question_responses[sid][question_id]['correct'] += 1
+
+    except Exception as e:
+        st.error(f"Error tracking question response: {str(e)}")
 # ==================================================================
 # 4. Collaborative Filtering & Peer Tutoring
 # ==================================================================
@@ -1172,16 +1331,71 @@ def get_recommendations(sid, df, G, seg, mot='High'):
         if easy_topic in EASY_TOPICS:
             rec.append(f"👍 Easy Win: {easy_topic} - {EASY_TOPICS[easy_topic][0]}")
 
-    # 9) Subtopic & application recommendations per completed topic
-    for t in comp:
-        # a) subtopics that need focus (only for low topics)
-        if t in low_topics:
-            subs = [
-                v for _, v, d in G.out_edges(t, data=True)
-                if d.get('relation') == 'subtopic'
-            ]
-            if subs:
-                rec.append(f"🔧 Subtopics to review in {t}: {', '.join(subs[:3])}")
+        # Enhanced data-driven subtopic recommendations
+        if t in G.nodes():
+            # Initialize containers for weighted subtopics
+            sub_weights = {}
+
+            # 1. Get direct subtopics from graph with weights
+            direct_subs = [(v, d.get('weight', 1.0))
+                           for _, v, d in G.out_edges(t, data=True)
+                           if d.get('relation') == 'subtopic']
+
+            for sub, weight in direct_subs:
+                sub_weights[sub] = weight
+
+            # 2. Incorporate question-level performance data
+            if sid in st.session_state.question_responses:
+                for qid, attempts in st.session_state.question_responses[sid].items():
+                    # Find question details and associated subtopics
+                    for topic, questions in QUESTION_BANK.items():
+                        for q in questions:
+                            if q['id'] == qid:
+                                # Check if question is related to current topic
+                                if topic == t:
+                                    # Calculate performance on this question
+                                    success_rate = sum(attempts) / len(attempts) if attempts else 0
+
+                                    # If student struggles with this question
+                                    if success_rate < 0.5:
+                                        # Extract subtopics from question if available
+                                        for i in range(1, 4):
+                                            subtopic = q.get(f'subtopic{i}')
+                                            if subtopic and subtopic in sub_weights:
+                                                # Boost weight for struggled subtopics
+                                                sub_weights[subtopic] += (1.0 - success_rate) * 2
+
+            # 3. Apply centrality measures from the knowledge graph
+            # Calculate betweenness centrality (how important nodes are as bridges)
+            try:
+                centrality = nx.betweenness_centrality(G, k=min(10, len(G.nodes)))
+                for sub in sub_weights:
+                    if sub in centrality:
+                        # Boost weight based on centrality (importance in graph)
+                        sub_weights[sub] += centrality[sub] * 5
+            except:
+                pass  # Skip if centrality calculation fails
+
+            # 4. Sort and recommend subtopics based on final weights
+            weighted_subs = sorted(sub_weights.items(), key=lambda x: x[1], reverse=True)
+
+            if weighted_subs:
+                # Format subtopic recommendations with weights
+                formatted_subs = []
+                for sub, weight in weighted_subs[:3]:
+                    # Higher weights get more emphasis
+                    emphasis = "🔥" if weight > 3 else "📌" if weight > 2 else ""
+                    formatted_subs.append(f"{sub} {emphasis}")
+
+                rec.append(f"🔧 Priority subtopics in {t}: {', '.join(formatted_subs)}")
+
+                # 5. Add extra insight for highest weighted subtopic
+                if weighted_subs and weighted_subs[0][1] > 2:
+                    top_sub = weighted_subs[0][0]
+                    # Find connected concepts to this subtopic
+                    related = [v for _, v, d in G.out_edges(top_sub, data=True)]
+                    if related:
+                        rec.append(f"🔍 Master '{top_sub}' to unlock: {', '.join(related[:2])}")
 
         # b) collaborative filtering suggestions
         collab_recs = collaborative_filtering_recommendations(sid, df, seg)
