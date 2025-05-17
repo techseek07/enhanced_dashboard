@@ -518,26 +518,24 @@ def recommend_topper_resources(seg, df):
     if seg.empty or df.empty:
         return []
 
-    usage = df.groupby('StudentID').agg(Videos=('VideosWatched', 'sum'),
-                                        Quizzes=('QuizzesTaken', 'sum'),
-                                        Practice=('PracticeSessions', 'sum'),
-                                        Media=('MediaClicks', 'sum')).reset_index()
+        # Get toppers' strong topics
+        # ------------------------------
+        # Modified section
+    toppers = seg[seg.label == 'Topper'].StudentID.tolist()
 
-    usage = usage.merge(seg[['StudentID', 'label']], on='StudentID', how='inner')
+    # Get most frequent topic for each topper
+    strong_topics = (
+        df[df.StudentID.isin(toppers)]
+        .groupby('StudentID')
+        .apply(lambda x: x.Topic.mode()[0])  # Get most frequent topic
+        .value_counts()  # Count how many toppers have each topic as strong
+    )
 
-    # Check if we have toppers
-    toppers = usage[usage.label == 'Topper']
-    if toppers.empty:
-        return ["No top performers identified yet."]
+    if not strong_topics.empty:
+        return [f"🌟 Top | Master {t} first" for t in strong_topics.index[:3]]
+    # ------------------------------
 
-    topper_means = toppers.mean(numeric_only=True).sort_values(ascending=False)
-
-    # Get top 3 metrics (excluding StudentID)
-    if 'StudentID' in topper_means:
-        topper_means = topper_means.drop('StudentID')
-
-    top3 = topper_means.head(3)
-    return [f"Top performers average {v:.1f} {k}" for k, v in top3.items()]
+    return ["No top performer patterns found"]
 
 def progression_summary(df, student1, student2, time_tolerance=0.35, perf_gap=0.2):
     """
@@ -1094,7 +1092,7 @@ def get_recommendations(sid, df, G, seg, mot='High'):
     rec = []
     topper_recs = recommend_topper_resources(seg, df)
     if topper_recs:
-        rec.extend([f"🌟 Top | {r}" for r in topper_recs[:3]])
+        rec.extend([f"🌟 Topper_habit | {r}" for r in topper_recs[:3]])
     # 1) Add a motivation quote
     if comp:
         selected_topic = np.random.choice(comp)
@@ -1102,10 +1100,10 @@ def get_recommendations(sid, df, G, seg, mot='High'):
             rec.append(f"💭Quote | \"{MOTIVATION_QUOTES[selected_topic]}\"")
 
     # 2) Bridge course recommendations for critical low-accuracy topics
-    critical_low_topics = acc[acc < 0.2].index.tolist()
+    critical_low_topics = acc[acc < 0.3].index.tolist()
     for t in critical_low_topics:
         if t in BRIDGE_COURSES:
-            rec.append(f"🚨 Urgent | {t} - {BRIDGE_COURSES[t]} [Accuracy: {acc[t]:.0%}]")
+            rec.append(f"🚨 Urgent_course | {t} - {BRIDGE_COURSES[t]} [Accuracy: {acc[t]:.0%}]")
 
     # 3) HOTS for strong topics (accuracy >=70% and motivation not Low)
     if mot != 'Low':
@@ -1113,7 +1111,7 @@ def get_recommendations(sid, df, G, seg, mot='High'):
         for t in strong_topics[:2]:  # Limit to 2 strongest
             if t in HOTS_QUESTIONS:
                 rec.append(
-                    f"🏆 Strong | {t} (Accuracy: {acc[t]:.0%}) - "
+                    f"🏆 Strong(HOTS) | {t} (Accuracy: {acc[t]:.0%}) - "
                     f"Try: {', '.join(HOTS_QUESTIONS[t][:2])}"
                 )
     # 4) Practice recommendations (combined logic)
@@ -1137,7 +1135,7 @@ def get_recommendations(sid, df, G, seg, mot='High'):
                 context = " (connected)" if conn_strength else " (practice zone)"
 
                 rec.append(
-                    f"📚 Practice | {t}{context} [{acc[t]:.0%} accuracy] - " +
+                    f"📚 Practice(less_than_70) | {t}{context} [{acc[t]:.0%} accuracy] - " +
                     f"{', '.join(seq[:3])} " +
                     f"[Strength: {conn_strength}]"
                 )
@@ -1145,20 +1143,23 @@ def get_recommendations(sid, df, G, seg, mot='High'):
     # 5) Quiz recommendations
     quiz_recs = [f"📝 Quiz | {q}" for q in get_quiz_recommendations(sid, sd)]
     rec.extend(quiz_recs[:2])
+    for t in acc[(acc >= 0.2) & (acc < 0.4)].index.tolist():
+        rec.append(f"🚨 Needs Work | {t} - Focused Practice Plan [Accuracy: {acc[t]:.0%}]")
 
     # 6) Media & analogies
     seen_videos = set()
     for t in comp[:2]:  # Limit to 2 recent completions
         if m := MEDIA_LINKS.get(t):
-            for video in m.get('videos', [])[:1]:  # First video per topic
+            for video in m.get('videos', [])[:1]:
                 if video not in seen_videos:
                     rec.append(f"🎥 Media | {video}")
                     seen_videos.add(video)
-
-    # Analogies for hard topics
+            if analogy := m.get('analogies'):
+                rec.append(f"🔗 Analogy | {analogy}")
     for t in acc[acc < 0.5].index.tolist():
-        if analogy := MEDIA_LINKS.get(t, {}).get('analogies'):
-            rec.append(f"🔗 Analogy | {analogy}")
+        if not MEDIA_LINKS.get(t):
+            rec.append(f"🎥 Media | General {t} Concepts: https://example.com/{t.replace(' ', '')}-intro")
+            rec.append(f"🔗 Analogy | {t} is like... [Ask teacher for analogy]")
 
 
     # 8) Easy‐win topics if motivation is Low
@@ -1430,17 +1431,18 @@ def main():
 
                         # Categorization dictionary with updated structure
                         rec_types = {
-                            "🚨 Urgent": [],
-                            "🏆 Strong": [],
-                            "📚 Practice": [],
+                            "🚨 Urgent_course": [],
+                            "🏆 Strong(HOTS)": [],
+                            "📚 Practice(less_than_70)": [],
                             "📝 Quiz": [],
                             "🎥 Media": [],
                             "🔗 Analogy": [],
                             "🔄 Apply": [],
                             "👍 Easy": [],
                             "💭 Quote": [],
-                            "🌟 Top": [],  # For top performer strategies
-                            "👥 Peer": []  # For collaborative filtering
+                            "🌟 Topper_habit": [],  # For top performer strategies
+                            "👥 Peer": [] , # For collaborative filtering
+                            "🚨 Needs Work": []  # New category for 20-39% accuracy
                         }
 
                         # Enhanced categorization logic
