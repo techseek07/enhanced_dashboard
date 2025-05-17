@@ -2237,29 +2237,67 @@ def main():
         try:
             if sid is not None:
                 problem_questions = analyze_item_level_performance(sid)
-                if problem_questions:
+                if problem_questions:  # If we have questions with difficulties
                     st.subheader("Knowledge Graph Impact Analysis")
 
-                    for q in problem_questions:
-                        with st.expander(f"{q[2]}: {q[1]} (Success Rate: {q[3]})"):
-                            col1, col2 = st.columns([2, 1])
-                            with col1:
-                                st.markdown("**Solution Steps:**")
-                                for step in q[4]:
-                                    st.write(f"- {step}")
-                            with col2:
-                                st.markdown("**Graph Connections:**")
-                                if q[5]:
-                                    for conn in q[5]:
-                                        st.write(f"`{conn}`")
-                                else:
-                                    st.write("No connections found")
+                    # Iterate through topics and their questions properly
+                    for topic, questions in problem_questions.items():
+                        st.markdown(f"### Topic: {topic}")
 
-                                st.metric("Current Mastery",
-                                          f"{st.session_state.knowledge_graph.nodes[q[2]].get('mastery', 0):.0%}",
-                                          help="Calculated from quiz performance")
+                        # Show each question in this topic
+                        for q in questions:
+                            success_rate = q['success_rate']
+                            question_text = q['text']
+                            qid = q['id']
+
+                            with st.expander(f"{question_text} (Success Rate: {success_rate})"):
+                                col1, col2 = st.columns([2, 1])
+                                with col1:
+                                    st.markdown("**Solution Steps:**")
+
+                                    # Find question details with steps
+                                    steps = []
+                                    for bank_q in QUESTION_BANK.get(topic, []):
+                                        if bank_q.get('id') == qid:
+                                            steps = bank_q.get('solution_steps', [])
+                                            break
+
+                                    # Display steps
+                                    if steps:
+                                        for step in steps:
+                                            st.write(f"- {step}")
+                                    else:
+                                        st.write("No detailed steps available")
+
+                                with col2:
+                                    st.markdown("**Graph Connections:**")
+                                    # Find graph connections for this topic
+                                    connections = []
+                                    if G.has_node(topic):
+                                        for _, neighbor, data in G.out_edges(topic, data=True):
+                                            connections.append(f"{data.get('relation', 'related')} → {neighbor}")
+
+                                    if connections:
+                                        for conn in connections[:3]:  # Show top 3
+                                            st.write(f"`{conn}`")
+                                    else:
+                                        st.write("No connections found")
+
+                                    # Show mastery
+                                    if G.has_node(topic):
+                                        mastery = G.nodes[topic].get('mastery', 0)
+                                        st.metric(
+                                            "Current Mastery",
+                                            f"{int(mastery * 100)}%",
+                                            help="Calculated from quiz performance"
+                                        )
+                else:
+                    st.info("No specific question difficulties identified yet. Keep practicing!")
         except Exception as e:
             st.error(f"Question analysis error: {str(e)}")
+            if st.session_state.get('debug_mode', False):
+                import traceback
+                st.code(traceback.format_exc(), language="python")
 
     except Exception as e:
         st.error(f"Critical application error: {str(e)}")
