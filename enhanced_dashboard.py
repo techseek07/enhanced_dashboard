@@ -478,83 +478,80 @@ def progression_summary(df, student1, student2, time_tolerance=0.15, perf_gap=0.
     - Similar total time spent (±15%)
     - Academic performance gap >20%
     """
-    # Get student data
     s1_data = df[df.StudentID == student1]
     s2_data = df[df.StudentID == student2]
 
-    # Calculate first interaction dates
     s1_start = s1_data.ExamDate.min()
     s2_start = s2_data.ExamDate.min()
 
-    # Calculate total time spent (in hours)
     s1_duration = s1_data.TimeTaken.sum()
     s2_duration = s2_data.TimeTaken.sum()
 
-    # Calculate performance metrics
     s1_perf = s1_data.Correct.mean()
     s2_perf = s2_data.Correct.mean()
 
     insights = []
 
-    # 1. Validate time alignment
     if abs((s1_start - s2_start).days) > 40:
         return ["Students started more than 15 days apart - not comparable"]
 
-    # 2. Validate time investment
     duration_ratio = abs(s1_duration - s2_duration) / max(s1_duration, s2_duration)
     if duration_ratio > time_tolerance:
         return [f"Time spent differs by {duration_ratio:.0%} - beyond {time_tolerance:.0%} threshold"]
 
-    # 3. Validate performance gap
     perf_diff = abs(s1_perf - s2_perf)
     if perf_diff < perf_gap:
         return [f"Performance difference {perf_diff:.0%} < {perf_gap:.0%} threshold"]
 
-    # Identify better performer
     better_student = student1 if s1_perf > s2_perf else student2
     weaker_student = student2 if better_student == student1 else student1
 
-    # Compare usage patterns
-    metrics = ['VideosWatched', 'QuizzesTaken',
-               'PracticeSessions', 'MediaClicks']
+    metrics = ['VideosWatched', 'QuizzesTaken', 'PracticeSessions', 'MediaClicks']
 
     comparisons = []
     for metric in metrics:
-        s1_val = s1_data[metric].sum()
-        s2_val = s2_data[metric].sum()
+        s1_val = int(s1_data[metric].sum())
+        s2_val = int(s2_data[metric].sum())
         diff = s1_val - s2_val
 
         comparisons.append({
             'metric': metric,
-            'better': max(s1_val, s2_val),
-            'weaker': min(s1_val, s2_val),
+            's1_val': s1_val,
+            's2_val': s2_val,
             'diff': abs(diff),
-            'direction': 'higher' if diff > 0 else 'lower'
+            'direction': 'ahead' if diff > 0 else 'behind'
         })
 
-    # Sort by largest absolute differences
     comparisons.sort(key=lambda x: x['diff'], reverse=True)
 
-    # Generate insights
     insights.append(
-        f"🏆 Better Performer: Student {better_student} ({s1_perf if better_student == student1 else s2_perf:.0%} vs {s2_perf if better_student == student1 else s1_perf:.0%})")
+        f"🏆 Better Performer: Student {better_student} "
+        f"({s1_perf if better_student == student1 else s2_perf:.0%} vs "
+        f"{s2_perf if better_student == student1 else s1_perf:.0%})"
+    )
 
-    for comp in comparisons[:3]:  # Top 3 differences
+    for comp in comparisons[:3]:
         try:
             insights.append(
-                f"📊 {comp['metric']}: {int(comp['better'])} vs {int(comp['weaker'])} "
-                f"({comp['direction']} by {int(comp['diff'])})"
+                f"📊 {comp['metric']}: You're {comp['direction']} by {comp['diff']} "
+                f"(You: {comp['s1_val']} vs Them: {comp['s2_val']})"
             )
         except Exception as e:
             st.error(f"Invalid comparison values: {str(e)}")
             continue
 
-    # Add strategic recommendations
-    top_diff = comparisons[0]
-    insights.append(
-        f"🚀 Recommendation: Focus on increasing {top_diff['metric'].lower()} "
-        f"activities by {top_diff['diff']} sessions/week"
-    )
+    if comparisons:
+        try:
+            top_diff = comparisons[0]
+            action = "Increase" if top_diff['direction'] == 'behind' else "Maintain"
+            insights.append(
+                f"🚀 Recommendation: {action} {top_diff['metric'].replace('Watched', '').replace('Taken', '').lower()} "
+                f"activities (+{top_diff['diff']} sessions/week)"
+            )
+        except Exception as e:
+            insights.append("🚀 Recommendation: Focus on balanced study habits")
+    else:
+        insights.append("🚀 Recommendation: Review core concepts and practice regularly")
 
     return insights
 
@@ -1347,53 +1344,70 @@ def main():
                     st.error(f"Recommendation error: {str(e)}")
 
         # Strategic Peer Comparison
-        with st.expander("🔍 Strategic Peer Comparison", expanded=True):
-            if not df.empty and sid is not None:
-                try:
-                    current_data = df[df.StudentID == sid]
-                    current_start = current_data.ExamDate.min()
-                    comparable_peers = df[
-                        (df.ExamDate > current_start - pd.Timedelta(days=60)) &
-                        (df.ExamDate < current_start + pd.Timedelta(days=60)) &
-                        (df.StudentID != sid)
-                    ].StudentID.unique()
-                    if len(comparable_peers) > 0:
-                        peer_perf = df[df.StudentID.isin(comparable_peers)].groupby('StudentID').Correct.mean()
-                        current_perf = current_data.Correct.mean()
-                        peer_diff = abs(peer_perf - current_perf)
-                        if not peer_diff.empty:
-                            best_peer = peer_diff.idxmax()
-                            perf_gap = peer_diff.max()
-                            if perf_gap >= 0.15:
-                                st.markdown(f"#### 🎯 Comparison with Student {best_peer}")
-                                st.caption(f"Similar start date, {perf_gap:.0%} performance difference")
-                                insights = progression_summary(df, sid, best_peer)
-                                col1, col2 = st.columns([2, 3])
-                                with col1:
-                                    st.markdown("##### 📈 Key Behavioral Differences")
-                                    if len(insights) > 1:
-                                        for insight in insights[1:4]:
-                                            st.markdown(f"<div class='highlight'>{insight}</div>", unsafe_allow_html=True)
-                                    else:
-                                        st.info("No significant behavioral differences found")
-                                with col2:
-                                    st.markdown("##### 🚀 Improvement Plan")
-                                    if len(insights) >= 1:
-                                        try:
-                                            # Directly display all insights
-                                            for insight in insights:
-                                                if "Recommendation" in insight:
-                                                    st.markdown(f"**Priority Action:**")
-                                                    st.success(f"{insight.replace('🚀 ', '')}")
-                                                else:
-                                                    st.markdown(f"- {insight}")
+            with st.expander("🔍 Strategic Peer Comparison", expanded=True):
+                if not df.empty and sid is not None:
+                    try:
+                        current_data = df[df.StudentID == sid]
+                        current_start = current_data.ExamDate.min()
+                        comparable_peers = df[
+                            (df.ExamDate > current_start - pd.Timedelta(days=40)) &
+                            (df.ExamDate < current_start + pd.Timedelta(days=40)) &
+                            (df.StudentID != sid)
+                            ].StudentID.unique()
+                        if len(comparable_peers) > 0:
+                            peer_perf = df[df.StudentID.isin(comparable_peers)].groupby('StudentID').Correct.mean()
+                            current_perf = current_data.Correct.mean()
+                            peer_diff = abs(peer_perf - current_perf)
+                            if not peer_diff.empty:
+                                best_peer = peer_diff.idxmax()
+                                perf_gap = peer_diff.max()
+                                if perf_gap >= 0.2:  # Changed to match function's default threshold of 0.2
+                                    st.markdown(f"#### 🎯 Comparison with Student {best_peer}")
+                                    st.caption(f"Similar start date, {perf_gap:.0%} performance difference")
+                                    # Call progression_summary with the correct parameters
+                                    insights = progression_summary(df, sid, best_peer)
+                                    col1, col2 = st.columns([2, 3])
+                                    with col1:
+                                        st.markdown("##### 📈 Key Behavioral Differences")
+                                        if len(insights) > 1:
+                                            for insight in insights[1:4]:
+                                                st.markdown(f"<div class='highlight'>{insight}</div>",
+                                                            unsafe_allow_html=True)
+                                        else:
+                                            st.info("No significant behavioral differences found")
+                                    with col2:
+                                        st.markdown("##### 🚀 Improvement Plan")
+                                        if len(insights) >= 1:
+                                            try:
+                                                # Display insights based on their prefixes
+                                                recommendation = next(
+                                                    (insight for insight in insights if "🚀" in insight), None)
+                                                if recommendation:
+                                                    st.markdown("**Priority Action:**")
+                                                    st.success(f"{recommendation}")
 
-                                            # Simplified visualization using raw values
-                                            if len(insights) > 1:
-                                                metrics = [insight.split(":")[0].replace("📊 ", "")
-                                                           for insight in insights if "📊" in insight]
-                                                values = [int(float(insight.split("by ")[-1].split()[0]))
-                                                          for insight in insights if "by" in insight]
+                                                # Display other insights
+                                                for insight in insights:
+                                                    if "🚀" not in insight and "🏆" not in insight:
+                                                        st.markdown(f"- {insight}")
+
+                                                # Extract metrics and values for visualization
+                                                metrics = []
+                                                values = []
+                                                for insight in insights:
+                                                    if "📊" in insight:
+                                                        parts = insight.split(":")
+                                                        if len(parts) > 1:
+                                                            metric = parts[0].replace("📊 ", "")
+                                                            # Extract the numerical value
+                                                            value_text = parts[1].strip()
+                                                            if "by" in value_text:
+                                                                try:
+                                                                    value = int(value_text.split("by ")[1].split()[0])
+                                                                    metrics.append(metric)
+                                                                    values.append(value)
+                                                                except (ValueError, IndexError):
+                                                                    continue
 
                                                 if metrics and values:
                                                     fig = go.Figure()
@@ -1409,28 +1423,27 @@ def main():
                                                     )
                                                     st.plotly_chart(fig, use_container_width=True)
 
-                                        except Exception as e:
-                                            st.error(f"Display error: {str(e)}")
-                                            # Fallback to raw insights display
-                                            st.markdown("**Key Findings:**")
-                                            for insight in insights:
-                                                st.write(f"- {insight}")
-                                        else:
-                                            st.markdown("**General improvement tips:**")
-                                            st.write("1. Balance different study activities")
-                                            st.write("2. Review foundational concepts weekly")
-                                            st.write("3. Track your time distribution")
+                                            except Exception as e:
+                                                st.error(f"Display error: {str(e)}")
+                                                # Fallback to raw insights display
+                                                st.markdown("**Key Findings:**")
+                                                for insight in insights:
+                                                    st.write(f"- {insight}")
+                                            else:
+                                                st.markdown("**General improvement tips:**")
+                                                st.write("1. Balance different study activities")
+                                                st.write("2. Review foundational concepts weekly")
+                                                st.write("3. Track your time distribution")
+                                else:
+                                    st.info("No peers found with >=20% performance gap")  # Changed threshold message
                             else:
-                                st.info("No peers found with >=15% performance gap")
+                                st.warning("Could not calculate peer differences")
                         else:
-                            st.warning("Could not calculate peer differences")
-                    else:
-                        st.warning("⚠️ No comparable peers found with similar start dates")
-                except Exception as e:
-                    st.error(f"Comparison failed: {str(e)}")
-            else:
-                st.warning("Select a student to enable peer comparison")
-
+                            st.warning("⚠️ No comparable peers found with similar start dates")
+                    except Exception as e:
+                        st.error(f"Comparison failed: {str(e)}")
+                else:
+                    st.warning("Select a student to enable peer comparison")
             # Quiz Section
             st.markdown('<p class="medium-font">Interactive Quiz Section</p>', unsafe_allow_html=True)
             try:
