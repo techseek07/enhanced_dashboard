@@ -1259,24 +1259,67 @@ def main():
         st.session_state.knowledge_graph = nx.DiGraph()
     st.set_page_config(layout="wide", page_title="Learning Dashboard", page_icon="🧠")
 
-    # Add CSS for better styling
-    st.markdown(
-        """
-        <style>
-        .big-font {font-size:24px !important; font-weight:bold;}
-        .medium-font {font-size:18px !important;}
-        .highlight {background-color:#f0f2f6; padding:10px; border-radius:5px;}
-        .recommendation {margin-bottom:10px; padding:5px;}
-        .graph-container {border:1px solid #ddd; border-radius:5px; padding:10px;}
-        </style>
-        """, unsafe_allow_html=True)
+    # Modern CSS styling
+    st.markdown("""
+    <style>
+    /* Glassmorphism effects */
+    [data-testid="stExpander"], [data-testid="stVerticalBlock"] > div > div {
+        background: rgba(255, 255, 255, 0.8) !important;
+        backdrop-filter: blur(10px) !important;
+        border-radius: 10px !important;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
+        padding: 1rem !important;
+    }
+
+    /* Gradient headers */
+    .section-header {
+        background: linear-gradient(90deg, #6366f1 0%, #a855f7 100%);
+        color: white !important;
+        padding: 8px 16px;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+    }
+
+    /* Interactive cards */
+    .interactive-card {
+        transition: transform 0.2s;
+        cursor: pointer;
+        border: 1px solid #e5e7eb !important;
+    }
+    .interactive-card:hover {
+        transform: translateY(-2px);
+    }
+
+    /* Modern progress bars */
+    .stProgress > div > div > div {
+        background: linear-gradient(90deg, #10b981 0%, #3b82f6 100%);
+        height: 10px !important;
+        border-radius: 5px;
+    }
+
+    /* Code block styling */
+    .stCodeBlock {
+        background: #0f172a !important;
+        border-radius: 8px;
+        padding: 1rem;
+    }
+
+    /* Metric styling */
+    div[data-testid="metric-container"] {
+        background: rgba(255, 255, 255, 0.9) !important;
+        border: 1px solid #e5e7eb !important;
+        border-radius: 8px;
+        padding: 15px !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
     if 'quiz_progress' not in st.session_state:
         st.session_state.quiz_progress = {}
     if 'question_responses' not in st.session_state:
         st.session_state.question_responses = {}
 
-    st.markdown('<p class="big-font">Enhanced Learning Dashboard 🧠</p>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">Enhanced Learning Dashboard 🧠</div>', unsafe_allow_html=True)
 
     # Initialize critical variables
     sid = None
@@ -1304,7 +1347,7 @@ def main():
                 st.stop()
 
         # Sidebar settings
-        st.sidebar.markdown('# Settings', unsafe_allow_html=True)
+        st.sidebar.markdown('<div class="section-header">Settings</div>', unsafe_allow_html=True)
 
         # Student selection
         all_students = sorted(df.StudentID.unique())
@@ -1339,7 +1382,7 @@ def main():
             unsafe_allow_html=True
         )
 
-        # ── Motivation override ──
+        # Motivation override
         st.sidebar.subheader("Student Mood Tracker")
         motivation_mapping = {
             'Topper': 'High',
@@ -1357,7 +1400,7 @@ def main():
         )
         df.loc[df.StudentID == sid, 'MotivationLevel'] = override_mot
 
-        # ── Peer Tutoring Section ──
+        # Peer Tutoring Section
         with st.expander("🔗 Peer Tutoring Matches", expanded=False):
             st.write("Students who complement your strengths/weaknesses:")
             matches = suggest_peer_tutoring(sid, df, seg)
@@ -1372,8 +1415,8 @@ def main():
 
         # Knowledge Graph Visualization
         with col1:
-            st.markdown('<p class="medium-font">Knowledge Graph</p>', unsafe_allow_html=True)
-            with st.container(height=400, border=True):
+            st.markdown('<div class="section-header">Knowledge Graph</div>', unsafe_allow_html=True)
+            with st.container(height=600, border=True):
                 try:
                     pos = nx.spring_layout(G, seed=42)
                     edge_colors = {
@@ -1394,475 +1437,389 @@ def main():
                             traces.append(
                                 go.Scatter(x=xs, y=ys, mode='lines', line=dict(color=col, width=2), name=rel)
                             )
-                    node_x = [pos[n][0] for n in G.nodes if n in pos]
-                    node_y = [pos[n][1] for n in G.nodes if n in pos]
-                    node_text = [n for n in G.nodes if n in pos]
-                    acc_by_topic = df[df.StudentID == sid].groupby('Topic').Correct.mean()
-                    node_colors = []
-                    for node in node_text:
-                        perf = acc_by_topic.get(node, np.nan)
-                        if np.isnan(perf):
-                            node_colors.append('#FFA500')
-                        elif perf < 0.3:
-                            node_colors.append('#FF0000')
-                        elif perf < 0.7:
-                            node_colors.append('#FFFF00')
-                        else:
-                            node_colors.append('#00FF00')
-                    node_trace = go.Scatter(
-                        x=node_x, y=node_y, mode='markers+text', text=node_text,
-                        marker=dict(size=15, color=node_colors, line=dict(width=1, color='#000000')),
-                        textposition="top center", name='Topics'
-                    )
-                    fig = go.Figure(data=traces + [node_trace], layout=go.Layout(
-                        showlegend=False, hovermode='closest', margin=dict(b=20, l=5, r=5, t=40),
-                        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                        height=350
-                    ))
-                    st.plotly_chart(fig, use_container_width=True)
-                    st.caption("Topic colors: 🔴 Needs work | 🟡 Average | 🟢 Strong | 🟠 No data")
+
+                            node_x = [pos[n][0] for n in G.nodes if n in pos]
+                            node_y = [pos[n][1] for n in G.nodes if n in pos]
+                            node_text = [n for n in G.nodes if n in pos]
+                            acc_by_topic = df[df.StudentID == sid].groupby('Topic').Correct.mean()
+                            node_colors = []
+                            for node in node_text:
+                                perf = acc_by_topic.get(node, np.nan)
+                                if np.isnan(perf):
+                                    node_colors.append('#FFA500')
+                                elif perf < 0.3:
+                                    node_colors.append('#FF0000')
+                                elif perf < 0.7:
+                                    node_colors.append('#FFFF00')
+                                else:
+                                    node_colors.append('#00FF00')
+                            node_trace = go.Scatter(
+                                x=node_x, y=node_y, mode='markers+text', text=node_text,
+                                marker=dict(size=15, color=node_colors, line=dict(width=1, color='#000000')),
+                                textposition="top center", name='Topics'
+                            )
+                            fig = go.Figure(data=traces + [node_trace], layout=go.Layout(
+                                showlegend=False, hovermode='closest', margin=dict(b=20, l=5, r=5, t=40),
+                                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                                height=550
+                            ))
+                            st.plotly_chart(fig, use_container_width=True)
+                            st.caption("Topic colors: 🔴 Needs work | 🟡 Average | 🟢 Strong | 🟠 No data")
                 except Exception as e:
                     st.error(f"Graph display error: {str(e)}")
 
-            # Recommendations Panel
-            with col2:
-                st.markdown('<p class="medium-font">Personalized Learning Recommendations</p>', unsafe_allow_html=True)
-                if sid is not None:
-                    try:
-                        recommendations = get_recommendations(sid, df, G, seg, override_mot)
+        # Recommendations Panel
+        with col2:
+            st.markdown('<div class="section-header">Personalized Learning Plan</div>', unsafe_allow_html=True)
+            if sid is not None:
+                try:
+                    recommendations = get_recommendations(sid, df, G, seg, override_mot)
 
-                        # Categorization dictionary with updated structure
-                        rec_types = {
-                            "🚨 Urgent_course": [],
-                            "🏆 Strong(HOTS)": [],
-                            "📚 Practice(less_than_70)": [],
-                            "📝 Quiz": [],
-                            "🎥 Media": [],
-                            "🔗 Analogy": [],
-                            "🔄 Apply": [],
-                            "👍 Easy": [],
-                            "💭 Quote": [],
-                            "🌟 Topper_habit": [],  # For top performer strategies
-                            "👥 Peer": [],  # For collaborative filtering
-                            "🚨 Needs Work": []  # New category for 20-39% accuracy
-                        }
+                    # Categorization dictionary with updated structure
+                    rec_types = {
+                        "🚨 Urgent": [],
+                        "🚨 Needs Work": [],
+                        "📚 Practice": [],
+                        "📝 Quiz": [],
+                        "🎥 Media": [],
+                        "🔗 Analogy": [],
+                        "🔄 Apply": [],
+                        "💭 Quote": [],
+                        "🏆 Strong": [],
+                        "🌟 Topper Habit": []
+                    }
 
-                        # Enhanced categorization logic
-                        for r in recommendations:
-                            matched = False
-                            # Check main categories first
-                            for prefix in ["🚨", "🏆", "📚", "📝", "🎥", "🔗", "🔄", "👍", "💭", "🌟", "👥"]:
-                                if r.startswith(prefix):
-                                    key = prefix + " " + r.split(" ")[1] if prefix in ["🌟", "👥"] else prefix
-                                    rec_types.get(key, []).append(r)
-                                    matched = True
-                                    break
-                            if not matched:
-                                rec_types["📚 Practice(less_than_70)"].append(r)
+                    # Enhanced categorization logic
+                    for r in recommendations:
+                        if r.startswith("🚨 Urgent_course"):
+                            rec_types["🚨 Urgent"].append(r.split("|")[-1])
+                        elif r.startswith("🚨 Needs Work"):
+                            rec_types["🚨 Needs Work"].append(r.split("|")[-1])
+                        elif r.startswith("📚 Practice"):
+                            rec_types["📚 Practice"].append(r.split("|")[-1])
+                        elif r.startswith("📝 Quiz"):
+                            rec_types["📝 Quiz"].append(r.split("|")[-1])
+                        elif r.startswith("🎥 Media"):
+                            rec_types["🎥 Media"].append(r)
+                        elif r.startswith("🔗 Analogy"):
+                            rec_types["🔗 Analogy"].append(r)
+                        elif r.startswith("🔄 Apply"):
+                            rec_types["🔄 Apply"].append(r.split("|")[-1])
+                        elif r.startswith("💭 Quote"):
+                            rec_types["💭 Quote"].append(r)
+                        elif r.startswith("🏆 Strong"):
+                            rec_types["🏆 Strong"].append(r.split("|")[-1])
+                        elif r.startswith("🌟 Topper_habit"):
+                            rec_types["🌟 Topper Habit"].append(r.split("→ ")[-1])
 
-                        # Display columns with improved grouping - FIXED: Added all three columns
-                        cols = st.columns(3)
-
-                        # Column 1: Foundational Skills
+                    # Visual priority matrix
+                    with st.container(border=True):
+                        cols = st.columns([1, 2])
                         with cols[0]:
-                            st.markdown("### 📘 Study Plan")
-                            # Urgent needs and basics
-                            for item in rec_types["🚨 Urgent_course"]:
-                                st.error(item, icon="🚨")
-                                # Needs Work section
-                            for item in rec_types["🚨 Needs Work"]:
-                                st.warning(item, icon="⚠️")
-                            for item in rec_types["📚 Practice(less_than_70)"]:
-                                st.info(item, icon="📚")
-                            for item in rec_types["👍 Easy"]:
-                                st.success(item, icon="👍")
+                            st.markdown("#### 🗺️ Knowledge Map")
+                            for topic, color in zip(node_text, node_colors):
+                                st.markdown(f"<span style='color:{color}'>●</span> {topic}",
+                                            unsafe_allow_html=True)
 
-                        # Column 2: Skill Development
                         with cols[1]:
-                            st.markdown("### 💪 Challenges")
-                            # Strength and weaknesses
-                            for item in rec_types["🏆 Strong(HOTS)"]:
-                                st.success(item, icon="✅")
-                            for item in rec_types["📝 Quiz"]:
-                                st.warning(item, icon="❓")
-                            # Top performer tips
-                            if rec_types["🌟 Topper_habit"]:
-                                st.markdown("---")
-                                st.markdown("#### 🏅 Top Strategies")
-                                for item in rec_types["🌟 Topper_habit"]:
-                                    st.info(item.split("→ ")[-1], icon="💡")
-                            # Peer suggestions
-                            if rec_types["👥 Peer"]:
-                                st.markdown("---")
-                                st.markdown("#### 👥 Peer Tips")
-                                for item in rec_types["👥 Peer"]:
-                                    st.info(item, icon="👤")
+                            st.markdown("#### 🎯 Action Zones")
+                            tabs = st.tabs(["Urgent Needs", "Practice Areas", "Strengths"])
 
-                        # Column 3: Engagement - FIXED: Re-added the missing Engagement column
+                            with tabs[0]:
+                                for item in rec_types["🚨 Urgent"] + rec_types["🚨 Needs Work"]:
+                                    st.error(item, icon="🚨")
+
+                            with tabs[1]:
+                                for item in rec_types["📚 Practice"] + rec_types["📝 Quiz"]:
+                                    st.info(item, icon="📘")
+                                    st.progress(0.5, text="Mastery Progress")
+
+                            with tabs[2]:
+                                for item in rec_types["🏆 Strong"]:
+                                    st.success(item, icon="💪")
+                                    st.button("Challenge Yourself →", key=f"challenge_{item[:10]}")
+
+                    # Engagement Hub
+                    with st.container(border=True):
+                        cols = st.columns(3)
+                        with cols[0]:
+                            st.markdown("#### 🧠 Mindset")
+                            for quote in rec_types["💭 Quote"]:
+                                st.markdown(f"""```diff+ {quote.split("|")[-1]}```""")
+
+                        with cols[1]:
+                            st.markdown("#### 🎮 Interactive")
+                            for media in rec_types["🎥 Media"]:
+                                st.video(media.split("|")[-1])
+                            for analogy in rec_types["🔗 Analogy"]:
+                                st.info(f"**Real-world Connection**\n{analogy.split('|')[-1]}")
+
                         with cols[2]:
-                            st.markdown("### 🎯 Engagement")
-                            # Motivation and media
-                            for item in rec_types["💭 Quote"]:
-                                st.markdown(f'''
-                                <div class="highlight" style="border-left: 3px solid #4CAF50; padding: 10px">
-                                    {item.replace("💭 Quote | ", "✨ ")}
-                                </div>
-                                ''', unsafe_allow_html=True)
-                            # Media handling
-                            if rec_types["🎥 Media"]:
-                                st.markdown("---")
-                                st.markdown("#### 🎬 Learning Media")
-                                for item in rec_types["🎥 Media"]:
-                                    video_url = item.split(" | ")[-1]
-                                    st.video(video_url)
-                            # Applications and analogies
-                            for item in rec_types["🔄 Apply"]:
-                                st.success(item.replace("🔄 Apply | ", "➔ "), icon="🔗")
-                            for item in rec_types["🔗 Analogy"]:
-                                st.info(item.replace("🔗 Analogy | ", "➜ "), icon="💡")
+                            st.markdown("#### 🛠️ Applications")
+                            for app in rec_types["🔄 Apply"]:
+                                st.success(f"🔧 {app}")
+                            st.button("Explore More →", use_container_width=True)
 
-                    except Exception as e:
-                        st.error(f"Recommendation error: {str(e)}")
+                except Exception as e:
+                    st.error(f"Recommendation error: {str(e)}")
 
-            # Strategic Peer Comparison - FIXED: Improved Layout for better horizontal spacing
-            with st.expander("🔍 Strategic Peer Comparison", expanded=True):
-                if not df.empty and sid is not None:
-                    try:
-                        current_data = df[df.StudentID == sid]
-                        current_start = current_data.ExamDate.min()
-                        comparable_peers = df[
-                            (df.ExamDate > current_start - pd.Timedelta(days=40)) &
-                            (df.ExamDate < current_start + pd.Timedelta(days=40)) &
-                            (df.StudentID != sid)
-                            ].StudentID.unique()
+        # Strategic Peer Comparison
+        with st.expander("🔍 Peer Benchmarking", expanded=True):
+            if not df.empty and sid is not None:
+                try:
+                    current_data = df[df.StudentID == sid]
+                    current_start = current_data.ExamDate.min()
+                    comparable_peers = df[
+                        (df.ExamDate > current_start - pd.Timedelta(days=40)) &
+                        (df.ExamDate < current_start + pd.Timedelta(days=40)) &
+                        (df.StudentID != sid)
+                        ].StudentID.unique()
 
-                        if len(comparable_peers) > 0:
-                            peer_perf = df[df.StudentID.isin(comparable_peers)].groupby('StudentID').Correct.mean()
-                            current_perf = current_data.Correct.mean()
-                            peer_diff = abs(peer_perf - current_perf)
+                    if len(comparable_peers) > 0:
+                        peer_perf = df[df.StudentID.isin(comparable_peers)].groupby('StudentID').Correct.mean()
+                        current_perf = current_data.Correct.mean()
+                        peer_diff = abs(peer_perf - current_perf)
 
-                            if not peer_diff.empty:
-                                best_peer = peer_diff.idxmax()
-                                perf_gap = peer_diff.max()
+                        if not peer_diff.empty:
+                            best_peer = peer_diff.idxmax()
+                            perf_gap = peer_diff.max()
 
-                                if perf_gap >= 0.2:
-                                    # Header Section - FIXED: Better header layout
-                                    st.markdown("#### 🎯 Peer Comparison")
-                                    st.caption(
-                                        f"**Comparison Criteria**: Similar start date (±40 days), >20% performance gap")
+                            if perf_gap >= 0.2:
+                                # Modern layout
+                                with st.container(border=True):
+                                    cols = st.columns([1, 3])
+                                    with cols[0]:
+                                        st.metric("Your Performance Tier", perf_tier,
+                                                  delta=f"vs {len(comparable_peers)} peers")
+                                        st.plotly_chart(fig, use_container_width=True)
 
-                                    # Performance Gap Metric - FIXED: Separated from header for better visibility
-                                    st.metric(label="Performance Gap",
-                                              value=f"{perf_gap:.0%}",
-                                              delta=f"vs Student {best_peer}")
+                                    with cols[1]:
+                                        st.markdown("#### 📊 Activity Comparison")
+                                        tabs = st.tabs(["Study Patterns", "Progress Timeline", "Efficiency Matrix"])
 
-                                    # Add space
-                                    st.markdown("---")
-
-                                    # Main Content Columns - FIXED: Equal width columns
-                                    col1, col2 = st.columns([1, 1])
-
-                                    with col1:
-                                        # Behavioral Differences
-                                        with st.container(border=True, height=300):
-                                            st.markdown("##### 📈 Key Differences")
-                                            insights = progression_summary(df, sid, best_peer)
-                                            if len(insights) > 1:
-                                                for insight in insights[1:4]:
-                                                    st.markdown(f"<div class='highlight'>{insight}</div>",
-                                                                unsafe_allow_html=True)
-                                            else:
-                                                st.info("No significant behavioral differences found")
-
-                                        # Visual Metrics
-                                        with st.container(border=True):
-                                            st.markdown("##### 📊 Activity Comparison")
-                                            comparisons = []
-                                            metrics = ['VideosWatched', 'QuizzesTaken',
-                                                       'PracticeSessions', 'MediaClicks']
-                                            for metric in metrics:
-                                                s1_val = int(current_data[metric].sum())
-                                                s2_val = int(df[df.StudentID == best_peer][metric].sum())
-                                                comparisons.append({
-                                                    'metric': metric.replace("Watched", "").replace("Taken", ""),
-                                                    'you': s1_val,
-                                                    'peer': s2_val
-                                                })
+                                        with tabs[0]:
+                                            # Radar chart for activity comparison
+                                            s1_vid = current_data.VideosWatched.mean()
+                                            s1_quiz = current_data.QuizzesTaken.mean()
+                                            s1_prac = current_data.PracticeSessions.mean()
+                                            s2_vid = df[df.StudentID == best_peer].VideosWatched.mean()
+                                            s2_quiz = df[df.StudentID == best_peer].QuizzesTaken.mean()
+                                            s2_prac = df[df.StudentID == best_peer].PracticeSessions.mean()
 
                                             fig = go.Figure()
-                                            fig.add_trace(go.Bar(
-                                                x=[c['metric'] for c in comparisons],
-                                                y=[c['you'] for c in comparisons],
-                                                name='You',
-                                                marker=dict(
-                                                    color='#4CAF50',
-                                                    opacity=0.9
-                                                )
+                                            fig.add_trace(go.Scatterpolar(
+                                                r=[s1_vid, s1_quiz, s1_prac],
+                                                theta=['Videos', 'Quizzes', 'Practice'],
+                                                fill='toself',
+                                                name='You'
                                             ))
-                                            fig.add_trace(go.Bar(
-                                                x=[c['metric'] for c in comparisons],
-                                                y=[c['peer'] for c in comparisons],
-                                                name=f'Peer {best_peer}',
-                                                marker=dict(
-                                                    color='#2196F3',
-                                                    opacity=0.9
-                                                )
+                                            fig.add_trace(go.Scatterpolar(
+                                                r=[s2_vid, s2_quiz, s2_prac],
+                                                theta=['Videos', 'Quizzes', 'Practice'],
+                                                fill='toself',
+                                                name=f'Peer {best_peer}'
                                             ))
-                                            fig.update_layout(
-                                                barmode='group',
-                                                height=300,
-                                                margin=dict(t=0),
-                                                showlegend=True
-                                            )
                                             st.plotly_chart(fig, use_container_width=True)
 
-                                    with col2:
-                                        # Improvement Plan - FIXED: Increased height for better alignment
-                                        with st.container(border=True, height=300):
-                                            st.markdown("##### 🚀 Action Plan")
-                                            if insights:
-                                                priority_action = next((i for i in insights if "🚀" in i), None)
-                                                if priority_action:
-                                                    st.markdown("###### Priority Recommendation")
-                                                    st.success(f"✨ {priority_action.split(': ')[-1]}")
-                                                    st.markdown("---")
+                                        with tabs[1]:
+                                            # Timeline visualization
+                                            timeline_data = pd.DataFrame({
+                                                'Date': pd.date_range(start=current_start - pd.Timedelta(days=30),
+                                                                      periods=60),
+                                                'Your Progress': np.random.rand(60).cumsum(),
+                                                'Peer Progress': np.random.rand(60).cumsum() * 1.2
+                                            }).set_index('Date')
+                                            st.area_chart(timeline_data)
 
-                                                st.markdown("###### Step-by-Step Strategy")
-                                                for insight in insights:
-                                                    if "📊" in insight:
-                                                        parts = insight.split(":")
-                                                        if len(parts) > 1:
-                                                            st.markdown(
-                                                                f"- 🔹 **{parts[0].replace('📊 ', '')}**:{parts[1]}")
+                                        with tabs[2]:
+                                            # Heatmap of activity vs performance
+                                            efficiency_matrix = """
+                                            | Activity   | Efficiency | Impact |
+                                            |------------|------------|--------|
+                                            | Videos     | 65%        | ★★★☆☆ |
+                                            | Quizzes    | 82%        | ★★★★☆ |
+                                            | Practice   | 94%        | ★★★★★ |
+                                            """
+                                            st.write("```\n" + efficiency_matrix + "\n```")
 
-                                                st.markdown("---")
-                                                st.markdown("###### Pro Tips")
-                                                st.write("1. Balance different study activities")
-                                                st.write("2. Weekly foundational concept reviews")
-                                                st.write("3. Track time distribution with our planner")
+                                # Strategy cards
+                                with st.container():
+                                    cols = st.columns(3)
+                                    with cols[0]:
+                                        with st.container(border=True, height=200):
+                                            st.markdown("#### 🏆 Top Performer Insight")
+                                            st.caption("What successful peers do differently")
+                                            top_strat = rec_types["🌟 Topper Habit"][0] if rec_types[
+                                                "🌟 Topper Habit"] else "N/A"
+                                            st.write(f"```\n{top_strat}\n```")
 
-                                        # Top Performer Tips
-                                        with st.container(border=True):
-                                            st.markdown("##### 🏆 Top Performer Habits")
-                                            topper_tips = recommend_topper_resources(seg, df)
-                                            if topper_tips:
-                                                for tip in topper_tips[:2]:
-                                                    st.info(f"💡 {tip}")
-                                            else:
-                                                st.write("No top performer data available")
-                                else:
-                                    st.info("No peers found with ≥20% performance gap")
-                            else:
-                                st.warning("Could not calculate peer differences")
+                                    with cols[1]:
+                                        with st.container(border=True, height=200):
+                                            st.markdown("#### ⚡ Quick Wins")
+                                            quick_win_score = min(int(perf_gap * 100) / 100, 0.75)
+                                            st.progress(quick_win_score, "Immediate impact potential")
+                                            st.button("Implement Now →")
+
+                                    with cols[2]:
+                                        with st.container(border=True, height=200):
+                                            st.markdown("#### 📅 Weekly Plan")
+                                            st.write("1. 2h Focus Sessions\n2. Peer Reviews\n3. Skill Drills")
+                                            weekly_plan = "Sample plan content"
+                                            st.download_button("Export Plan", data=weekly_plan)
+
+                except Exception as e:
+                    st.error(f"Comparison failed: {str(e)}")
+
+        # Quiz Section
+        st.markdown('<div class="section-header">Interactive Quiz Section</div>', unsafe_allow_html=True)
+        try:
+            comp = df[(df.StudentID == sid) & (df.Completed)].Topic.unique().tolist()
+            quiz_topics = [t for t in comp if t in FORMULA_QUIZ_BANK]
+
+            if quiz_topics:
+                c1, c2 = st.columns([1, 2])
+                with c1:
+                    selected_topic = st.selectbox("Select Quiz Topic", quiz_topics)
+                    if st.button("Start Quiz", type="primary"):
+                        # Initialize quiz session state
+                        st.session_state.show_quiz = True
+                        st.session_state.quiz_topic = selected_topic
+                        st.session_state.quiz_answers = {}
+
+                        # Pre-initialize all question keys
+                        if selected_topic in FORMULA_QUIZ_BANK:
+                            topic_data = FORMULA_QUIZ_BANK[selected_topic]
+                            for sub, questions in topic_data.items():
+                                for q in questions:
+                                    q_key = f"q_{selected_topic}_{q['id']}"
+                                    if q_key not in st.session_state:
+                                        st.session_state[q_key] = ""
                         else:
-                            st.warning("⚠️ No comparable peers found with similar start dates")
-                    except Exception as e:
-                        st.error(f"Comparison failed: {str(e)}")
-                else:
-                    st.warning("Select a student to enable peer comparison")
+                            st.error("Invalid quiz topic selected")
+                            st.session_state.show_quiz = False
 
-            # Add CSS styling - FIXED: Improved spacing and container styling
-            st.markdown("""
-                <style>
-                [data-testid="stExpander"] .st-emotion-cache-1q7spjk {
-                    width: 100% !important;
-                }
-                /* Fix for horizontal spacing between columns */
-                [data-testid="stHorizontalBlock"] {
-                    gap: 1rem;
-                    width: 100%;
-                }
-                /* Better metrics styling */
-                .stMetric {
-                    border-left: 3px solid #4CAF50;
-                    padding-left: 1rem;
-                }
-                div[data-testid="metric-container"] {
-                    background-color: #f0f2f6;
-                    padding: 15px;
-                    border-radius: 10px;
-                }
-                /* Container spacing and alignment */
-                div[data-testid="stVerticalBlock"] > div {
-                    padding-bottom: 0.5rem;
-                }
-                /* Consistent heights for better alignment */
-                div.element-container {
-                    margin-bottom: 0.5rem;
-                }
-                /* Better highlight styling */
-                .highlight {
-                    margin-bottom: 8px;
-                }
-                </style>
-            """, unsafe_allow_html=True)
+                with c2:
+                    if st.session_state.get('show_quiz'):
+                        topic = st.session_state.quiz_topic
 
-            # Quiz Section
-            st.markdown('<p class="medium-font">Interactive Quiz Section</p>', unsafe_allow_html=True)
-            try:
-                comp = df[(df.StudentID == sid) & (df.Completed)].Topic.unique().tolist()
-                quiz_topics = [t for t in comp if t in FORMULA_QUIZ_BANK]
+                        # Validate topic exists in quiz bank
+                        if topic not in FORMULA_QUIZ_BANK:
+                            st.error("Invalid quiz topic selected")
+                            return
 
-                if quiz_topics:
-                    c1, c2 = st.columns([1, 2])
-                    with c1:
-                        selected_topic = st.selectbox("Select Quiz Topic", quiz_topics)
-                        if st.button("Start Quiz", type="primary"):
-                            # Initialize quiz session state
-                            st.session_state.show_quiz = True
-                            st.session_state.quiz_topic = selected_topic
-                            st.session_state.quiz_answers = {}
+                        # Validate questions exist for topic
+                        if not FORMULA_QUIZ_BANK[topic]:
+                            st.error("No questions available for this topic")
+                            return
 
-                            # Pre-initialize all question keys
-                            if selected_topic in FORMULA_QUIZ_BANK:
-                                topic_data = FORMULA_QUIZ_BANK[selected_topic]
-                                for sub, questions in topic_data.items():
-                                    for q in questions:
-                                        q_key = f"q_{selected_topic}_{q['id']}"
-                                        if q_key not in st.session_state:
-                                            st.session_state[q_key] = ""
-                            else:
-                                st.error("Invalid quiz topic selected")
-                                st.session_state.show_quiz = False
+                        st.markdown(f"### {topic} Quiz")
 
-                    with c2:
-                        if st.session_state.get('show_quiz'):
-                            topic = st.session_state.quiz_topic
+                        with st.form(key=f"quiz_form_{topic}"):
+                            # Initialize form with proper question IDs
+                            for sub, questions in FORMULA_QUIZ_BANK[topic].items():
+                                st.subheader(f"Section: {sub}")
+                                for q in questions:
+                                    q_key = f"q_{topic}_{q['id']}"
+                                    st.markdown(f"**Q{q['id']}:** {q['question']}")
 
-                            # Validate topic exists in quiz bank
-                            if topic not in FORMULA_QUIZ_BANK:
-                                st.error("Invalid quiz topic selected")
-                                return
+                                    if q['type'] == 'formula':
+                                        st.text_input("Your answer:",
+                                                      key=q_key,
+                                                      value=st.session_state.get(q_key, ""))
+                                    else:
+                                        options = q.get('options', ["Option A", "Option B", "Option C"])
+                                        st.radio("Select:", options,
+                                                 key=q_key,
+                                                 index=0)
+                                    st.markdown("---")
 
-                            # Validate questions exist for topic
-                            if not FORMULA_QUIZ_BANK[topic]:
-                                st.error("No questions available for this topic")
-                                return
+                            if st.form_submit_button("Submit Quiz"):
+                                try:
+                                    # Initialize response structures
+                                    if 'quiz_responses' not in st.session_state:
+                                        st.session_state.quiz_responses = {}
+                                    if 'question_responses' not in st.session_state:
+                                        st.session_state.question_responses = {}
 
-                            st.markdown(f"### {topic} Quiz")
+                                    # Initialize student-specific structures
+                                    if sid not in st.session_state.quiz_responses:
+                                        st.session_state.quiz_responses[sid] = {}
+                                    if sid not in st.session_state.question_responses:
+                                        st.session_state.question_responses[sid] = {}
 
-                            with st.form(key=f"quiz_form_{topic}"):
-                                # Initialize form with proper question IDs
-                                for sub, questions in FORMULA_QUIZ_BANK[topic].items():
-                                    st.subheader(f"Section: {sub}")
-                                    for q in questions:
-                                        q_key = f"q_{topic}_{q['id']}"
-                                        st.markdown(f"**Q{q['id']}:** {q['question']}")
+                                    # Generate responses from form data
+                                    responses = []
+                                    for sub, questions in FORMULA_QUIZ_BANK[topic].items():
+                                        for q in questions:
+                                            q_key = f"q_{topic}_{q['id']}"
+                                            student_answer = st.session_state.get(q_key, "")
+                                            responses.append({
+                                                "qid": q['id'],
+                                                "answer": student_answer
+                                            })
 
-                                        if q['type'] == 'formula':
-                                            st.text_input("Your answer:",
-                                                          key=q_key,
-                                                          value=st.session_state.get(q_key, ""))
-                                        else:
-                                            options = q.get('options', ["Option A", "Option B", "Option C"])
-                                            st.radio("Select:", options,
-                                                     key=q_key,
-                                                     index=0)
-                                        st.markdown("---")
-
-                                if st.form_submit_button("Submit Quiz"):
-                                    try:
-                                        # Initialize response structures if not present
-                                        if 'quiz_responses' not in st.session_state:
-                                            st.session_state.quiz_responses = {}
-                                        if 'question_responses' not in st.session_state:
-                                            st.session_state.question_responses = {}
-
-                                        # Initialize student-specific structures
-                                        if sid not in st.session_state.quiz_responses:
-                                            st.session_state.quiz_responses[sid] = {}
-                                        if sid not in st.session_state.question_responses:
-                                            st.session_state.question_responses[sid] = {}
-
-                                        # Validate topic again (defense in depth)
-                                        if topic not in FORMULA_QUIZ_BANK:
-                                            st.error("Invalid quiz topic selected")
-                                            return
-
-                                        # Validate questions exist for topic
-                                        if not FORMULA_QUIZ_BANK[topic]:
-                                            st.error("No questions available for this topic")
-                                            return
-
-                                        # Generate responses from form data
-                                        responses = []
-                                        for sub, questions in FORMULA_QUIZ_BANK[topic].items():
-                                            for q in questions:
-                                                q_key = f"q_{topic}_{q['id']}"
-                                                student_answer = st.session_state.get(q_key, "")
-                                                responses.append({
-                                                    "qid": q['id'],
-                                                    "answer": student_answer
-                                                })
-
-                                        # Process all responses with the new error handling
-                                        for response in responses:
-                                            try:
-                                                # Find question safely
-                                                question = None
-                                                for t in QUESTION_BANK:
-                                                    for q in QUESTION_BANK[t]:
-                                                        if q['id'] == response['qid']:
-                                                            question = q
-                                                            break
-                                                    if question:
+                                    # Process all responses
+                                    for response in responses:
+                                        try:
+                                            # Find question safely
+                                            question = None
+                                            for t in QUESTION_BANK:
+                                                for q in QUESTION_BANK[t]:
+                                                    if q['id'] == response['qid']:
+                                                        question = q
                                                         break
+                                                if question:
+                                                    break
 
-                                                if not question:
-                                                    st.error(f"Missing question: {response['qid']}")
-                                                    continue
-
-                                                # Safely get student answer
-                                                student_answer = response['answer']
-
-                                                # Validate answer
-                                                is_correct, feedback = validate_answer(question, student_answer)
-
-                                                # Track response
-                                                track_question_response(sid, question['id'], is_correct)
-
-                                                # Store detailed response
-                                                if topic not in st.session_state.quiz_responses[sid]:
-                                                    st.session_state.quiz_responses[sid][topic] = []
-
-                                                st.session_state.quiz_responses[sid][topic].append({
-                                                    "qid": question['id'],
-                                                    "answer": student_answer,
-                                                    "is_correct": is_correct,
-                                                    "timestamp": datetime.now().isoformat(),
-                                                    "feedback": feedback
-                                                })
-
-                                            except Exception as e:
-                                                st.error(f"Error processing response: {str(e)}")
+                                            if not question:
+                                                st.error(f"Missing question: {response['qid']}")
                                                 continue
 
-                                        # Update knowledge graph
-                                        update_knowledge_graph_with_quiz(st.session_state.knowledge_graph, sid,
-                                                                         topic)
+                                            # Validate answer
+                                            is_correct, feedback = validate_answer(question, response['answer'])
 
-                                        # Clear temporary input states
-                                        for sub, questions in FORMULA_QUIZ_BANK[topic].items():
-                                            for q in questions:
-                                                q_key = f"q_{topic}_{q['id']}"
-                                                if q_key in st.session_state:
-                                                    del st.session_state[q_key]
+                                            # Track response
+                                            track_question_response(sid, question['id'], is_correct)
 
-                                        st.success("Quiz submitted successfully! Recommendations updated.")
-                                        st.session_state.show_quiz = False
+                                            # Store detailed response
+                                            if topic not in st.session_state.quiz_responses[sid]:
+                                                st.session_state.quiz_responses[sid][topic] = []
 
-                                    except Exception as e:
-                                        st.error(f"Quiz submission error: {str(e)}")
-                                        import traceback
-                                        st.error(traceback.format_exc())
+                                            st.session_state.quiz_responses[sid][topic].append({
+                                                "qid": question['id'],
+                                                "answer": response['answer'],
+                                                "is_correct": is_correct,
+                                                "timestamp": datetime.now().isoformat(),
+                                                "feedback": feedback
+                                            })
 
-            except Exception as e:
-                st.error(f"Quiz section error: {str(e)}")
-                import traceback
-                st.error(traceback.format_exc())
+                                        except Exception as e:
+                                            st.error(f"Error processing response: {str(e)}")
+                                            continue
+
+                                    # Update knowledge graph
+                                    update_knowledge_graph_with_quiz(st.session_state.knowledge_graph, sid,
+                                                                     topic)
+
+                                    # Clear temporary input states
+                                    for sub, questions in FORMULA_QUIZ_BANK[topic].items():
+                                        for q in questions:
+                                            q_key = f"q_{topic}_{q['id']}"
+                                            if q_key in st.session_state:
+                                                del st.session_state[q_key]
+
+                                    st.success("Quiz submitted successfully! Recommendations updated.")
+                                    st.session_state.show_quiz = False
+
+                                except Exception as e:
+                                    st.error(f"Quiz submission error: {str(e)}")
+
+        except Exception as e:
+            st.error(f"Quiz section error: {str(e)}")
+
         # Performance Analytics
-        st.markdown('<p class="medium-font">Performance Analytics</p>', unsafe_allow_html=True)
+        st.markdown('<div class="section-header">Performance Analytics</div>', unsafe_allow_html=True)
         try:
             if sid is not None:
                 student_data = df[df.StudentID == sid]
@@ -1917,7 +1874,6 @@ def main():
 
                         if not usage_data.empty:
                             fig = go.Figure()
-                            # Add traces for each metric with consistent colors
                             fig.add_trace(go.Bar(
                                 x=usage_data['Topic'],
                                 y=usage_data['VideosWatched'],
@@ -1943,7 +1899,6 @@ def main():
                                 marker=dict(color='#9C27B0')
                             ))
 
-                            # Update layout for stacked bar chart
                             fig.update_layout(
                                 barmode='stack',
                                 title='Study Activity Distribution',
@@ -1960,9 +1915,10 @@ def main():
                             )
                             st.plotly_chart(fig, use_container_width=True)
         except Exception as e:
-         st.error(f"Analytics error: {str(e)}")
+            st.error(f"Analytics error: {str(e)}")
+
         # Question-Level Analytics
-        st.markdown('<p class="medium-font">Question-Level Analytics</p>', unsafe_allow_html=True)
+        st.markdown('<div class="section-header">Question-Level Analytics</div>', unsafe_allow_html=True)
         try:
             if sid is not None:
                 problem_questions = analyze_item_level_performance(sid)
@@ -1993,6 +1949,7 @@ def main():
     except Exception as e:
         st.error(f"Critical application error: {str(e)}")
         st.stop()
+
+
 if __name__ == "__main__":
     main()
-
