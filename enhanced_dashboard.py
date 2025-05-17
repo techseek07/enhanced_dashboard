@@ -800,12 +800,6 @@ def update_knowledge_graph_with_quiz(G, sid, topic):
 
         # Get responses with fallback
         responses = st.session_state.quiz_responses.get(sid, {}).get(topic, [])
-
-        # DEBUG: Print responses for debugging
-        st.write(f"DEBUG - Found {len(responses)} responses for {topic}")
-        if len(responses) > 0:
-            st.write(f"First response: {responses[0]}")
-
         # Safer mastery calculation with better fallback
         total = len(responses)
         if total == 0:
@@ -817,7 +811,7 @@ def update_knowledge_graph_with_quiz(G, sid, topic):
             correct_count = sum(1 for r in responses if r.get('is_correct', False))
             mastery = correct_count / total
             mastery = min(max(mastery, 0), 1)  # Clamp between 0-1
-            st.write(f"DEBUG - Correct answers: {correct_count}/{total}")
+            st.write(f" Correct answers: {correct_count}/{total}")
 
         # Update node in graph
         if not G.has_node(topic):
