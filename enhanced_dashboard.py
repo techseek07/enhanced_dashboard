@@ -1,4 +1,6 @@
 # enhanced_dashboard_complete.py
+import re
+import math
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -106,19 +108,28 @@ if "quiz_progress" not in st.session_state:
     st.session_state.quiz_progress = {}
 QUESTION_BANK = {
     'Algebra': [
-        {"id":"alg_q1","text":"2x+3=7, x=?","difficulty":1,"type":"free_response","answer":"2"}
-    ],
-    'Geometry': [
-        {"id":"geo_1","text":"Area of triangle base=4,h=3","difficulty":1,
-         "type":"free_response","answer":"6"}
+        {"id":"alg_q1",
+         "text":"x²−5x+6=0 → x?",
+         "difficulty":1,
+         "type":"formula",
+         "answer":"2 or 3",
+         "solution_steps":["Factor: (x-2)(x-3)=0", "Solutions: x=2, x=3"]}
     ],
     'Calculus': [
-        {"id":"calc_q1","text":"∫2x dx from 0 to 2","difficulty":1,
-         "type":"free_response","answer":"4"}
+        {"id":"calc_q1",
+         "text":"d/dx(x³)=?",
+         "difficulty":1,
+         "type":"formula",
+         "answer":"3x²",
+         "solution_steps":["Apply power rule"]}
     ],
     'Chemistry': [
-        {"id":"chem_q1","text":"Balance H₂ + O₂ → H₂O","difficulty":1,
-         "type":"free_response","answer":"2H₂+O₂→2H₂O"}
+        {"id":"chem_q1",
+         "text":"PV=nRT → solve for T",
+         "difficulty":1,
+         "type":"formula",
+         "answer":"T=PV/(nR)",
+         "solution_steps":["Divide both sides by nR"]}
     ]
 }
 # Question response tracking
@@ -346,22 +357,86 @@ def generate_student_data(num_students=500):
 
     return pd.DataFrame(rows)
 
-def validate_answer(question, student_answer):
-    """Enhanced validation with error handling"""
-    try:
-        if question['type'] == 'free_response':
-            correct = str(student_answer).strip() == str(question.get('answer', '')).strip()
-            solution = question.get('solution_steps', 'No solution available')
-            return correct, f"Solution: {solution}"
 
-        elif question['type'] == 'multiple_choice':
+def validate_answer(question, student_answer):
+    """Enhanced validation with normalization and flexible matching"""
+    try:
+        # Normalization function for answer comparison
+        def normalize_answer(answer):
+            """Process answer for consistent comparison"""
+            if not isinstance(answer, str):
+                answer = str(answer)
+
+            # Standard normalization steps
+            normalized = answer.lower().strip()
+            normalized = re.sub(r'\s+', ' ', normalized)  # Collapse whitespace
+            normalized = re.sub(r'[;,]\s*', ',', normalized)  # Standardize separators
+            normalized = re.sub(r'[^a-z0-9.,=+-]', '', normalized)  # Remove special chars
+
+            # Handle mathematical equivalences
+            normalized = normalized.replace('^', '')  # x² vs x2
+            normalized = normalized.replace('\\frac', '/')  # LaTeX fractions
+            normalized = re.sub(r'\.0+$', '', normalized)  # 2.0 → 2
+
+            return normalized
+
+        # Get question type and parameters
+        q_type = question.get('type', 'unknown')
+        correct_answer = str(question.get('answer', '')).strip()
+        solution = question.get('solution_steps', 'No solution available')
+
+        # Normalize both answers
+        norm_correct = normalize_answer(correct_answer)
+        norm_student = normalize_answer(student_answer)
+
+        if q_type == 'free_response':
+            # Handle multiple valid answer formats
+            correct_parts = sorted(re.split(r'[,/]', norm_correct))
+            student_parts = sorted(re.split(r'[,/]', norm_student))
+
+            # Check for complete match (order-independent)
+            if set(correct_parts) == set(student_parts):
+                return True, f"Solution: {solution}"
+
+            # Check numerical equivalence
+            try:
+                correct_num = float(norm_correct)
+                student_num = float(norm_student)
+                if math.isclose(correct_num, student_num, rel_tol=0.01):
+                    return True, f"Solution: {solution}"
+            except (ValueError, TypeError):
+                pass
+
+            # Partial credit for multi-part answers
+            common = set(correct_parts) & set(student_parts)
+            if common:
+                partial = len(common) / len(correct_parts)
+                return (False,
+                        f"Partial credit ({partial:.0%}): "
+                        f"Missing {set(correct_parts) - set(student_parts)}")
+
+            return False, f"Solution: {solution}"
+
+        elif q_type == 'multiple_choice':
             options = question.get('options', [])
             correct_index = question.get('correct_option', -1)
+
             if correct_index < 0 or correct_index >= len(options):
                 return False, "Invalid question configuration"
-            return student_answer == correct_index, f"Correct answer: {options[correct_index]}"
 
-        return False, "Unsupported question type"
+            # Normalize both the option and student answer
+            normalized_options = [normalize_answer(opt) for opt in options]
+            norm_student_choice = normalize_answer(student_answer)
+
+            # Match either index or normalized text
+            if (student_answer == correct_index) or \
+                    (norm_student_choice == normalize_answer(options[correct_index])):
+                return True, f"Correct answer: {options[correct_index]}"
+
+            return False, f"Correct answer: {options[correct_index]}"
+
+        else:
+            return False, "Unsupported question type"
 
     except Exception as e:
         st.error(f"Validation error: {str(e)}")
@@ -471,7 +546,7 @@ def calculate_odds_ratio(table):
         return float('nan')
 
 
-def progression_summary(df, student1, student2, time_tolerance=0.15, perf_gap=0.2):
+def progression_summary(df, student1, student2, time_tolerance=0.35, perf_gap=0.2):
     """
     Compare two students with:
     - Similar start dates (±15 days)
@@ -493,11 +568,11 @@ def progression_summary(df, student1, student2, time_tolerance=0.15, perf_gap=0.
     insights = []
 
     if abs((s1_start - s2_start).days) > 40:
-        return ["Students started more than 15 days apart - not comparable"]
+        return ["Students started more than 40 days apart - not comparable"]
 
     duration_ratio = abs(s1_duration - s2_duration) / max(s1_duration, s2_duration)
     if duration_ratio > time_tolerance:
-        return [f"Time spent differs by {duration_ratio:.0%} - beyond {time_tolerance:.0%} threshold"]
+        return [f"Time spent on app differs by {duration_ratio:.0%} - beyond {time_tolerance:.0%} threshold"]
 
     perf_diff = abs(s1_perf - s2_perf)
     if perf_diff < perf_gap:
@@ -1345,6 +1420,7 @@ def main():
                             st.warning(item)
                 except Exception as e:
                     st.error(f"Recommendation error: {str(e)}")
+
 
         # Strategic Peer Comparison
             with st.expander("🔍 Strategic Peer Comparison", expanded=True):
