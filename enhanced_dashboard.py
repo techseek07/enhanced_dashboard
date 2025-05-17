@@ -1,4 +1,7 @@
+
 # enhanced_dashboard_complete.py
+import re
+import math
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -68,19 +71,37 @@ APPLICATION_RELATIONS = {
 # (Optional) A minimal quiz bank just to keep the pipeline alive
 FORMULA_QUIZ_BANK = {
     'Algebra': {
-        'Quadratic': [
-            {"id":"alg_q1","question":"x²−5x+6=0 → x?","type":"formula","answer":"2 or 3"}
+        'Quadratic Equations': [
+            {
+                "id": "alg_q1",
+                "question": "x²−5x+6=0 → x?",
+                "type": "formula",
+                "answer": "2 or 3",
+                "solution_steps": ["Factor: (x-2)(x-3)=0", "Solutions: x=2, x=3"]
+            }
         ]
     },
     'Calculus': {
         'Derivative Rules': [
-            {"id":"calc_q1","question":"d/dx(x³)=?","type":"formula","answer":"3x²"}
+            {
+                "id": "calc_q1",
+                "question": "d/dx(x³)=?",
+                "type": "formula",
+                "answer": "3x²",
+                "solution_steps": ["Apply the power rule: d/dx(xⁿ) = nxⁿ⁻¹ where n=3."]
+            }
         ]
     },
     'Chemistry': {
-        'Gas Law': [
-            {"id":"chem_q1","question":"PV=nRT → solve for T","type":"formula","answer":"T=PV/(nR)"}
-        ],
+        'Gas Laws': [
+            {
+                "id": "chem_q1",
+                "question": "PV=nRT → solve for T",
+                "type": "formula",
+                "answer": "T=PV/(nR)",
+                "solution_steps": ["Divide both sides of the equation by 'nR' to isolate 'T'."]
+            }
+        ]
     }
 }
 
@@ -88,19 +109,28 @@ if "quiz_progress" not in st.session_state:
     st.session_state.quiz_progress = {}
 QUESTION_BANK = {
     'Algebra': [
-        {"id":"alg_q1","text":"2x+3=7, x=?","difficulty":1,"type":"free_response","answer":"2"}
-    ],
-    'Geometry': [
-        {"id":"geo_q1","text":"Area of triangle base=4,h=3","difficulty":1,
-         "type":"free_response","answer":"6"}
+        {"id":"alg_q1",
+         "text":"x²−5x+6=0 → x?",
+         "difficulty":1,
+         "type":"formula",
+         "answer":"2 or 3",
+         "solution_steps":["Factor: (x-2)(x-3)=0", "Solutions: x=2, x=3"]}
     ],
     'Calculus': [
-        {"id":"calc_q1","text":"∫2x dx from 0 to 2","difficulty":1,
-         "type":"free_response","answer":"4"}
+        {"id":"calc_q1",
+         "text":"d/dx(x³)=?",
+         "difficulty":1,
+         "type":"formula",
+         "answer":"3x²",
+         "solution_steps":["Apply power rule"]}
     ],
     'Chemistry': [
-        {"id":"chem_q1","text":"Balance H₂ + O₂ → H₂O","difficulty":1,
-         "type":"free_response","answer":"2H₂+O₂→2H₂O"}
+        {"id":"chem_q1",
+         "text":"PV=nRT → solve for T",
+         "difficulty":1,
+         "type":"formula",
+         "answer":"T=PV/(nR)",
+         "solution_steps":["Divide both sides by nR"]}
     ]
 }
 # Question response tracking
@@ -204,18 +234,14 @@ MOTIVATION_QUOTES = {
 def generate_student_data(num_students=500):
     np.random.seed(42)
     rows = []
-    hardwired_students = [
-        {'skill': 0.95, 'mot': 'High', 'correct_rate': 0.9, 'time_factor': 0.7},
-        {'skill': 0.65, 'mot': 'Medium', 'correct_rate': 0.58, 'time_factor': 1.0},
-        {'skill': 0.25, 'mot': 'Low', 'correct_rate': 0.35, 'time_factor': 1.5}
-    ]
+    study_profiles = ['video_heavy', 'practice_heavy', 'quiz_heavy', 'balanced']
+    profile_dist = [0.3, 0.25, 0.2, 0.25]
 
     # Helper function for safe subtopic sampling
     def get_subtopics(subtopic_list):
         try:
             if not subtopic_list or len(subtopic_list) == 0:
                 return [None] * 3
-
             # Always return 3 elements, using replacement if needed
             replace = len(subtopic_list) < 3
             sampled = np.random.choice(
@@ -225,138 +251,193 @@ def generate_student_data(num_students=500):
             )
             return list(sampled)
         except Exception as e:
-            st.error(f"Subtopic sampling error: {str(e)}")
+            print(f"Subtopic sampling error: {str(e)}")
             return [None] * 3
 
-    # Hardwired students generation
-    for sid in range(3):
-        hw = hardwired_students[sid]
-        exam_date = datetime.now() - timedelta(days=30)
-        done = ['Algebra', 'Geometry', 'Chemical Bonding'] if sid == 0 else ['Algebra']
-
-        for topic in TOPICS:
-            subtopics = SUBTOPICS.get(topic, [])
-            for _ in range(5):  # Fixed interaction count
-                subs = get_subtopics(subtopics)
-                # Force performance characteristics
-                corr = np.random.binomial(1, hw['correct_rate'])
-                tkt = max(0.1, np.random.gamma(2, 1.5) * hw['time_factor'])
-                rows.append({
-                    'StudentID': sid,
-                    'Topic': topic,
-                    'Subtopic1': subs[0],
-                    'Subtopic2': subs[1],
-                    'Subtopic3': subs[2],
-                    'Weight1': 0.4,
-                    'Weight2': 0.3,
-                    'Weight3': 0.3,
-                    'Correct': corr,
-                    'TimeTaken': tkt,
-                    'ExamDate': exam_date,
-                    'Completed': topic in done,
-                    'MotivationLevel': hw['mot'],
-                    'VideosWatched': 5 if sid == 0 else 3,
-                    'QuizzesTaken': 4 if sid == 0 else 1,
-                    'PracticeSessions': 6 if sid == 0 else 2,
-                    'MediaClicks': 3,
-                    'QuizProgress': 0
-                })
-
-    # Regular students generation
-    num_students = max(1, num_students)
     for sid in range(num_students):
-        exam_date = datetime.now() + timedelta(days=np.random.randint(7, 60))
-        skill = np.clip(np.random.beta(2, 1.5), 0.01, 0.99)
-        mot = np.random.choice(['High', 'Medium', 'Low'], p=[0.5, 0.3, 0.2])
+        try:
+            # Profile selection
+            study_profile = np.random.choice(study_profiles, p=profile_dist)
 
-        # Safe topic completion handling
-        done = []
-        if TOPICS:
-            try:
-                done = np.random.choice(
-                    TOPICS,
-                    size=np.random.randint(0, len(TOPICS) + 1),
-                    replace=False
-                ).tolist()
-            except ValueError as e:
-                st.error(f"Topic selection error: {str(e)}")
-                done = []
+            # Base characteristics
+            exam_date = datetime.now() - timedelta(days=np.random.randint(1, 60))
+            base_skill = np.random.beta(2, 1.5)
+            motivation = np.random.choice(['High', 'Medium', 'Low'], p=[0.4, 0.4, 0.2])
+            mf = {'High': 1.4, 'Medium': 1.0, 'Low': 0.6}.get(motivation, 1.0)  # Safe lookup
 
-        for topic in TOPICS:
-            # Safe interaction count calculation
-            interaction_count = min(max(np.random.poisson(3) + 1, 1), 10)
-
-            for _ in range(interaction_count):
-                subtopics = SUBTOPICS.get(topic, [])
-                subs = get_subtopics(subtopics)
-
-                # Dirichlet distribution safety
-                try:
-                    wts = np.random.dirichlet(np.ones(3))
-                    wts /= wts.sum()
-                except Exception as e:
-                    wts = [0.4, 0.3, 0.3]
-                    st.error(f"Weight generation error: {str(e)}")
-
-                # Quiz progress validation
-                quiz_bank = FORMULA_QUIZ_BANK.get(topic, {})
-                qp_max = max(1, len(quiz_bank))
-                qp = np.random.randint(0, qp_max) if qp_max > 0 else 0
-                # Motivation factor with bounds
-                mf = {'High': 1.5, 'Medium': 1.0, 'Low': 0.7}.get(mot, 1.0)
-
-                # Binomial success with probability clamping
-                success_prob = skill * mf
-                corr = np.random.binomial(1, np.clip(success_prob, 0.01, 0.99))
-
-                # Time taken with gamma distribution safeguards
-                tkt = max(0.1, np.random.gamma(2, 1.5) * (2 - mf))
-
-                # Usage metrics with validation
+            # Profile-driven behavior
+            if study_profile == 'video_heavy':
+                vids = max(0, np.random.poisson(4))
+                prac = max(0, np.random.poisson(1))
+                qz = max(0, np.random.poisson(1))
+            elif study_profile == 'practice_heavy':
                 vids = max(0, np.random.poisson(1))
-                qz = max(0, np.random.binomial(1, 0.3))
+                prac = max(0, np.random.poisson(5))
+                qz = max(0, np.random.poisson(2))
+            elif study_profile == 'quiz_heavy':
+                vids = max(0, np.random.poisson(2))
                 prac = max(0, np.random.poisson(2))
-                media = max(0, np.random.poisson(1))
-                rows.append({
-                    'StudentID': sid,
-                    'Topic': topic,
-                    'Subtopic1': subs[0],
-                    'Subtopic2': subs[1],
-                    'Subtopic3': subs[2],
-                    'Weight1': wts[0],
-                    'Weight2': wts[1],
-                    'Weight3': wts[2],
-                    'Correct': corr,
-                    'TimeTaken': tkt,
-                    'ExamDate': exam_date,
-                    'Completed': topic in done,
-                    'MotivationLevel': mot,
-                    'VideosWatched': vids,
-                    'QuizzesTaken': qz,
-                    'PracticeSessions': prac,
-                    'MediaClicks': media,
-                    'QuizProgress': qp
-                })
+                qz = max(0, np.random.poisson(4))
+            else:  # balanced
+                vids = max(0, np.random.poisson(2))
+                prac = max(0, np.random.poisson(3))
+                qz = max(0, np.random.poisson(2))
+
+            # Safe topic completion handling
+            done_topics = []
+            if TOPICS:
+                try:
+                    done_topics = np.random.choice(
+                        TOPICS,
+                        size=np.random.randint(0, len(TOPICS) + 1),
+                        replace=False
+                    ).tolist()
+                except ValueError as e:
+                    print(f"Topic selection error: {str(e)}")
+                    done_topics = []
+
+            # Per-topic interactions
+            for topic in TOPICS:
+                # Safe interaction count calculation
+                interaction_count = min(max(np.random.poisson(3) + 1, 1), 10)
+                done = topic in done_topics or np.random.rand() < 0.3  # 30% completion probability
+
+                for _ in range(interaction_count):
+                    # Subtopic handling
+                    subtopics = SUBTOPICS.get(topic, [])
+                    subs = get_subtopics(subtopics)
+
+                    # Success probability with model relationship between behaviors and outcomes
+                    success_prob = np.clip(
+                        base_skill * mf * (1 + 0.1 * vids + 0.15 * prac + 0.07 * qz),
+                        0.1, 0.95
+                    )
+
+                    # Quiz progress validation
+                    quiz_bank = FORMULA_QUIZ_BANK.get(topic, {})
+                    qp_max = max(1, len(quiz_bank))
+                    qp = np.random.randint(0, qp_max) if qp_max > 0 else 0
+
+                    # Dirichlet distribution for weights with safety
+                    try:
+                        wts = np.random.dirichlet(np.ones(3))
+                        wts /= wts.sum()  # Ensure sum to 1
+                    except Exception as e:
+                        wts = [0.4, 0.3, 0.3]
+                        print(f"Weight generation error: {str(e)}")
+
+                    # Time modeling with skill and motivation factors
+                    time_factor = 2 - mf  # Inverse relationship: higher motivation -> less time
+                    tkt = max(0.1, np.random.gamma(2, 1.5) * time_factor)
+
+                    rows.append({
+                        'StudentID': sid,
+                        'Topic': topic,
+                        'Subtopic1': subs[0],
+                        'Subtopic2': subs[1],
+                        'Subtopic3': subs[2],
+                        'Weight1': wts[0],
+                        'Weight2': wts[1],
+                        'Weight3': wts[2],
+                        'Correct': np.random.binomial(1, success_prob),
+                        'TimeTaken': tkt,
+                        'ExamDate': exam_date,
+                        'Completed': done,
+                        'MotivationLevel': motivation,
+                        'VideosWatched': vids,
+                        'PracticeSessions': prac,
+                        'QuizzesTaken': qz,
+                        'MediaClicks': max(0, np.random.poisson(2)),
+                        'QuizProgress': qp,
+                        'StudyProfile': study_profile,
+                        'ConsistencyScore': np.random.beta(3, 1)
+                    })
+        except Exception as e:
+            print(f"Error generating data for student {sid}: {str(e)}")
+            continue
 
     return pd.DataFrame(rows)
 
 
 def validate_answer(question, student_answer):
-    """Enhanced validation with error handling"""
+    """Enhanced validation with normalization and flexible matching"""
     try:
-        if question['type'] == 'free_response':
-            correct = str(student_answer).strip() == str(question.get('answer', '')).strip()
-            solution = question.get('solution_steps', 'No solution available')
-            return correct, f"Solution: {solution}"
+        # Normalization function for answer comparison
+        def normalize_answer(answer):
+            """Process answer for consistent comparison"""
+            if not isinstance(answer, str):
+                answer = str(answer)
 
-        elif question['type'] == 'multiple_choice':
+            # Standard normalization steps
+            normalized = answer.lower().strip()
+            normalized = re.sub(r'\s+', ' ', normalized)  # Collapse whitespace
+            normalized = re.sub(r'[;,]\s*', ',', normalized)  # Standardize separators
+            normalized = re.sub(r'[^a-z0-9.,=+-]', '', normalized)  # Remove special chars
+
+            # Handle mathematical equivalences
+            normalized = normalized.replace('^', '')  # x² vs x2
+            normalized = normalized.replace('\\frac', '/')  # LaTeX fractions
+            normalized = re.sub(r'\.0+$', '', normalized)  # 2.0 → 2
+
+            return normalized
+
+        # Get question type and parameters
+        q_type = question.get('type', 'unknown')
+        correct_answer = str(question.get('answer', '')).strip()
+        solution = question.get('solution_steps', 'No solution available')
+
+        # Normalize both answers
+        norm_correct = normalize_answer(correct_answer)
+        norm_student = normalize_answer(student_answer)
+
+        if q_type == 'free_response':
+            # Handle multiple valid answer formats
+            correct_parts = sorted(re.split(r'[,/]', norm_correct))
+            student_parts = sorted(re.split(r'[,/]', norm_student))
+
+            # Check for complete match (order-independent)
+            if set(correct_parts) == set(student_parts):
+                return True, f"Solution: {solution}"
+
+            # Check numerical equivalence
+            try:
+                correct_num = float(norm_correct)
+                student_num = float(norm_student)
+                if math.isclose(correct_num, student_num, rel_tol=0.01):
+                    return True, f"Solution: {solution}"
+            except (ValueError, TypeError):
+                pass
+
+            # Partial credit for multi-part answers
+            common = set(correct_parts) & set(student_parts)
+            if common:
+                partial = len(common) / len(correct_parts)
+                return (False,
+                        f"Partial credit ({partial:.0%}): "
+                        f"Missing {set(correct_parts) - set(student_parts)}")
+
+            return False, f"Solution: {solution}"
+
+        elif q_type == 'multiple_choice':
             options = question.get('options', [])
             correct_index = question.get('correct_option', -1)
+
             if correct_index < 0 or correct_index >= len(options):
                 return False, "Invalid question configuration"
-            return student_answer == correct_index, f"Correct answer: {options[correct_index]}"
 
-        return False, "Unsupported question type"
+            # Normalize both the option and student answer
+            normalized_options = [normalize_answer(opt) for opt in options]
+            norm_student_choice = normalize_answer(student_answer)
+
+            # Match either index or normalized text
+            if (student_answer == correct_index) or \
+                    (norm_student_choice == normalize_answer(options[correct_index])):
+                return True, f"Correct answer: {options[correct_index]}"
+
+            return False, f"Correct answer: {options[correct_index]}"
+
+        else:
+            return False, "Unsupported question type"
 
     except Exception as e:
         st.error(f"Validation error: {str(e)}")
@@ -466,86 +547,87 @@ def calculate_odds_ratio(table):
         return float('nan')
 
 
-def progression_summary(df, student1, student2, time_tolerance=0.15, perf_gap=0.2):
+def progression_summary(df, student1, student2, time_tolerance=0.35, perf_gap=0.2):
     """
     Compare two students with:
     - Similar start dates (±15 days)
     - Similar total time spent (±15%)
     - Academic performance gap >20%
     """
-    # Get student data
     s1_data = df[df.StudentID == student1]
     s2_data = df[df.StudentID == student2]
 
-    # Calculate first interaction dates
     s1_start = s1_data.ExamDate.min()
     s2_start = s2_data.ExamDate.min()
 
-    # Calculate total time spent (in hours)
     s1_duration = s1_data.TimeTaken.sum()
     s2_duration = s2_data.TimeTaken.sum()
 
-    # Calculate performance metrics
     s1_perf = s1_data.Correct.mean()
     s2_perf = s2_data.Correct.mean()
 
     insights = []
 
-    # 1. Validate time alignment
     if abs((s1_start - s2_start).days) > 40:
-        return ["Students started more than 15 days apart - not comparable"]
+        return ["Students started more than 40 days apart - not comparable"]
 
-    # 2. Validate time investment
     duration_ratio = abs(s1_duration - s2_duration) / max(s1_duration, s2_duration)
     if duration_ratio > time_tolerance:
-        return [f"Time spent differs by {duration_ratio:.0%} - beyond {time_tolerance:.0%} threshold"]
+        return [f"Time spent on app differs by {duration_ratio:.0%} - beyond {time_tolerance:.0%} threshold"]
 
-    # 3. Validate performance gap
     perf_diff = abs(s1_perf - s2_perf)
     if perf_diff < perf_gap:
         return [f"Performance difference {perf_diff:.0%} < {perf_gap:.0%} threshold"]
 
-    # Identify better performer
     better_student = student1 if s1_perf > s2_perf else student2
     weaker_student = student2 if better_student == student1 else student1
 
-    # Compare usage patterns
-    metrics = ['VideosWatched', 'QuizzesTaken',
-               'PracticeSessions', 'MediaClicks']
+    metrics = ['VideosWatched', 'QuizzesTaken', 'PracticeSessions', 'MediaClicks']
 
     comparisons = []
     for metric in metrics:
-        s1_val = s1_data[metric].sum()
-        s2_val = s2_data[metric].sum()
+        s1_val = int(s1_data[metric].sum())
+        s2_val = int(s2_data[metric].sum())
         diff = s1_val - s2_val
 
         comparisons.append({
             'metric': metric,
-            'better': max(s1_val, s2_val),
-            'weaker': min(s1_val, s2_val),
+            's1_val': s1_val,
+            's2_val': s2_val,
             'diff': abs(diff),
-            'direction': 'higher' if diff > 0 else 'lower'
+            'direction': 'ahead' if diff > 0 else 'behind'
         })
 
-    # Sort by largest absolute differences
     comparisons.sort(key=lambda x: x['diff'], reverse=True)
 
-    # Generate insights
     insights.append(
-        f"🏆 Better Performer: Student {better_student} ({s1_perf if better_student == student1 else s2_perf:.0%} vs {s2_perf if better_student == student1 else s1_perf:.0%})")
-
-    for comp in comparisons[:3]:  # Top 3 differences
-        insights.append(
-            f"📊 {comp['metric']}: {comp['better']} vs {comp['weaker']} "
-            f"({comp['direction']} by {comp['diff']})"
-        )
-
-    # Add strategic recommendations
-    top_diff = comparisons[0]
-    insights.append(
-        f"🚀 Recommendation: Focus on increasing {top_diff['metric'].lower()} "
-        f"activities by {top_diff['diff']} sessions/week"
+        f"🏆 Better Performer: Student {better_student} "
+        f"({s1_perf if better_student == student1 else s2_perf:.0%} vs "
+        f"{s2_perf if better_student == student1 else s1_perf:.0%})"
     )
+
+    for comp in comparisons[:3]:
+        try:
+            insights.append(
+                f"📊 {comp['metric']}: You're {comp['direction']} by {comp['diff']} "
+                f"(You: {comp['s1_val']} vs Them: {comp['s2_val']})"
+            )
+        except Exception as e:
+            st.error(f"Invalid comparison values: {str(e)}")
+            continue
+
+    if comparisons:
+        try:
+            top_diff = comparisons[0]
+            action = "Increase" if top_diff['direction'] == 'behind' else "Maintain"
+            insights.append(
+                f"🚀 Recommendation: {action} {top_diff['metric'].replace('Watched', '').replace('Taken', '').lower()} "
+                f"activities (+{top_diff['diff']} sessions/week)"
+            )
+        except Exception as e:
+            insights.append("🚀 Recommendation: Focus on balanced study habits")
+    else:
+        insights.append("🚀 Recommendation: Review core concepts and practice regularly")
 
     return insights
 
@@ -777,37 +859,62 @@ def apply_dual_tier_scoring(G):
 
 def update_knowledge_graph_with_quiz(G, sid, topic):
     """More impactful graph updates"""
-    responses = st.session_state.quiz_responses.get(sid, {}).get(topic, [])
+    try:
+        responses = st.session_state.quiz_responses.get(sid, {}).get(topic, [])
 
-    # Calculate concept mastery score (0-1)
-    mastery = sum(r['is_correct'] for r in responses) / max(1, len(responses))
+        # 1. Safer mastery calculation
+        total = len(responses)
+        if total == 0:
+            return
 
-    # Update node properties
-    if G.has_node(topic):
-        G.nodes[topic]['mastery'] = mastery
-        G.nodes[topic]['last_attempt'] = datetime.now().isoformat()
+        mastery = sum(1 for r in responses if r.get('is_correct', False)) / total
+        mastery = min(max(mastery, 0), 1)  # Clamp between 0-1
 
-    # Visual feedback
-    st.success(f"Updated mastery for {topic} to {mastery:.0%}")
+        # 2. Safe node updates
+        if G.has_node(topic):
+            G.nodes[topic]['mastery'] = mastery
+            G.nodes[topic]['last_attempt'] = datetime.now().isoformat()
+            st.success(f"Updated mastery for {topic} to {mastery:.0%}")
 
-    # Update subtopic connections
-    seen_subtopics = set()
-    subtopic_weights = Counter()
+        # 3. Robust subtopic processing
+        seen_subtopics = set()
+        subtopic_weights = Counter()
 
-    # Existing subtopic processing logic
-    for response in responses:
-        question = next(q for q in QUESTION_BANK[topic] if q['id'] == response['qid'])
-        for i in (1, 2, 3):
-            subtopic = question.get(f'subtopic{i}', None)
-            if subtopic:
-                subtopic_weights[subtopic] += response['is_correct']
+        for response in responses:
+            try:
+                # 4. Safe question lookup across all topics
+                question = None
+                for t in QUESTION_BANK:
+                    for q in QUESTION_BANK[t]:
+                        if q['id'] == response['qid']:
+                            question = q
+                            break
+                    if question:
+                        break
 
-    # Keep existing subtopic relationship creation
-    for subtopic, weight in subtopic_weights.most_common(2):
-        if not G.has_node(subtopic):
-            G.add_node(subtopic, type='subtopic')
-            seen_subtopics.add(subtopic)
-        G.add_edge(topic, subtopic, relation='subtopic', weight=weight)
+                if not question:
+                    st.error(f"Missing question: {response['qid']}")
+                    continue
+
+                # 5. Validate subtopic fields
+                for i in (1, 2, 3):
+                    subtopic = question.get(f'subtopic{i}')
+                    if subtopic:
+                        subtopic_weights[subtopic] += int(response.get('is_correct', 0))
+
+            except Exception as e:
+                st.error(f"Error processing response: {str(e)}")
+                continue
+
+        # 6. Safe edge creation
+        for subtopic, weight in subtopic_weights.most_common(2):
+            if not G.has_node(subtopic):
+                G.add_node(subtopic, type='subtopic')
+                seen_subtopics.add(subtopic)
+            G.add_edge(topic, subtopic, relation='subtopic', weight=weight)
+
+    except Exception as e:
+        st.error(f"Knowledge graph update failed: {str(e)}")
 # ==================================================================
 # 4. Collaborative Filtering & Peer Tutoring
 # ==================================================================
@@ -955,7 +1062,10 @@ def get_recommendations(sid, df, G, seg, mot='High'):
     comp = sd[sd.Completed].Topic.unique().tolist()
 
     rec = []
-
+    topper_recs = recommend_topper_resources(seg, df)
+    if topper_recs:
+        rec.insert(0, "🌟 Top Performer Strategies:")
+        rec.extend([f"   → {r}" for r in topper_recs[:3]])
     # 1) Add a motivation quote
     if comp:
         selected_topic = np.random.choice(comp)
@@ -1075,7 +1185,7 @@ def analyze_item_level_performance(sid):
     problem_questions = []
 
     for q_id, attempts in responses.items():
-        if len(attempts) >= 2:
+        if len(attempts) >= 1:
             success_rate = sum(attempts) / len(attempts)
             if success_rate < 0.5:
                 # Find question details
@@ -1312,158 +1422,278 @@ def main():
                 except Exception as e:
                     st.error(f"Recommendation error: {str(e)}")
 
+
         # Strategic Peer Comparison
-        with st.expander("🔍 Strategic Peer Comparison", expanded=True):
-            if not df.empty and sid is not None:
-                try:
-                    current_data = df[df.StudentID == sid]
-                    current_start = current_data.ExamDate.min()
-                    comparable_peers = df[
-                        (df.ExamDate > current_start - pd.Timedelta(days=60)) &
-                        (df.ExamDate < current_start + pd.Timedelta(days=60)) &
-                        (df.StudentID != sid)
-                    ].StudentID.unique()
-                    if len(comparable_peers) > 0:
-                        peer_perf = df[df.StudentID.isin(comparable_peers)].groupby('StudentID').Correct.mean()
-                        current_perf = current_data.Correct.mean()
-                        peer_diff = abs(peer_perf - current_perf)
-                        if not peer_diff.empty:
-                            best_peer = peer_diff.idxmax()
-                            perf_gap = peer_diff.max()
-                            if perf_gap >= 0.15:
-                                st.markdown(f"#### 🎯 Comparison with Student {best_peer}")
-                                st.caption(f"Similar start date, {perf_gap:.0%} performance difference")
-                                insights = progression_summary(df, sid, best_peer)
-                                col1, col2 = st.columns([2, 3])
-                                with col1:
-                                    st.markdown("##### 📈 Key Behavioral Differences")
-                                    if len(insights) > 1:
-                                        for insight in insights[1:4]:
-                                            st.markdown(f"<div class='highlight'>{insight}</div>", unsafe_allow_html=True)
-                                    else:
-                                        st.info("No significant behavioral differences found")
-                                with col2:
-                                    st.markdown("##### 🚀 Improvement Plan")
-                                    if len(insights) >= 4:
-                                        top_metric = insights[1].split(':')[0]
-                                        s1_val = int(insights[1].split(' ')[-3])
-                                        s2_val = int(insights[1].split(' ')[-6])
-                                        fig = go.Figure()
-                                        fig.add_trace(go.Bar(
-                                            x=['You', f'Student {best_peer}'],
-                                            y=[s1_val, s2_val],
-                                            text=[s1_val, s2_val],
-                                            textposition='auto'
-                                        ))
-                                        fig.update_layout(title=f"{top_metric} Comparison", height=300)
-                                        st.plotly_chart(fig, use_container_width=True)
-                                        st.markdown(f"<div class='highlight'>{insights[-1]}</div>", unsafe_allow_html=True)
-                                    else:
-                                        st.warning("Insufficient data for detailed comparison")
+            with st.expander("🔍 Strategic Peer Comparison", expanded=True):
+                if not df.empty and sid is not None:
+                    try:
+                        current_data = df[df.StudentID == sid]
+                        current_start = current_data.ExamDate.min()
+                        comparable_peers = df[
+                            (df.ExamDate > current_start - pd.Timedelta(days=40)) &
+                            (df.ExamDate < current_start + pd.Timedelta(days=40)) &
+                            (df.StudentID != sid)
+                            ].StudentID.unique()
+                        if len(comparable_peers) > 0:
+                            peer_perf = df[df.StudentID.isin(comparable_peers)].groupby('StudentID').Correct.mean()
+                            current_perf = current_data.Correct.mean()
+                            peer_diff = abs(peer_perf - current_perf)
+                            if not peer_diff.empty:
+                                best_peer = peer_diff.idxmax()
+                                perf_gap = peer_diff.max()
+                                if perf_gap >= 0.2:  # Changed to match function's default threshold of 0.2
+                                    st.markdown(f"#### 🎯 Comparison with Student {best_peer}")
+                                    st.caption(f"Similar start date, {perf_gap:.0%} performance difference")
+                                    # Call progression_summary with the correct parameters
+                                    insights = progression_summary(df, sid, best_peer)
+                                    col1, col2 = st.columns([2, 3])
+                                    with col1:
+                                        st.markdown("##### 📈 Key Behavioral Differences")
+                                        if len(insights) > 1:
+                                            for insight in insights[1:4]:
+                                                st.markdown(f"<div class='highlight'>{insight}</div>",
+                                                            unsafe_allow_html=True)
+                                        else:
+                                            st.info("No significant behavioral differences found")
+                                    with col2:
+                                        if len(insights) >= 1:
+                                            # Add topper resource tips
+                                            topper_tips = recommend_topper_resources(seg, df)
+                                            if topper_tips:
+                                                st.markdown("**💡 Top Performer Habits:**")
+                                                for tip in topper_tips[:2]:
+                                                    st.info(tip)
+                                        st.markdown("##### 🚀 Improvement Plan")
+                                        if len(insights) >= 1:
+                                            try:
+                                                # Display insights based on their prefixes
+                                                recommendation = next(
+                                                    (insight for insight in insights if "🚀" in insight), None)
+                                                if recommendation:
+                                                    st.markdown("**Priority Action:**")
+                                                    st.success(f"{recommendation}")
+
+                                                # Display other insights
+                                                for insight in insights:
+                                                    if "🚀" not in insight and "🏆" not in insight:
+                                                        st.markdown(f"- {insight}")
+
+                                                # Extract metrics and values for visualization
+                                                metrics = []
+                                                values = []
+                                                for insight in insights:
+                                                    if "📊" in insight:
+                                                        parts = insight.split(":")
+                                                        if len(parts) > 1:
+                                                            metric = parts[0].replace("📊 ", "")
+                                                            # Extract the numerical value
+                                                            value_text = parts[1].strip()
+                                                            if "by" in value_text:
+                                                                try:
+                                                                    value = int(value_text.split("by ")[1].split()[0])
+                                                                    metrics.append(metric)
+                                                                    values.append(value)
+                                                                except (ValueError, IndexError):
+                                                                    continue
+
+                                                if metrics and values:
+                                                    fig = go.Figure()
+                                                    fig.add_trace(go.Bar(
+                                                        x=metrics,
+                                                        y=values,
+                                                        text=values,
+                                                        textposition='auto'
+                                                    ))
+                                                    fig.update_layout(
+                                                        title="Key Activity Differences",
+                                                        height=250
+                                                    )
+                                                    st.plotly_chart(fig, use_container_width=True)
+
+                                            except Exception as e:
+                                                st.error(f"Display error: {str(e)}")
+                                                # Fallback to raw insights display
+                                                st.markdown("**Key Findings:**")
+                                                for insight in insights:
+                                                    st.write(f"- {insight}")
+                                            else:
+                                                st.markdown("**General improvement tips:**")
+                                                st.write("1. Balance different study activities")
+                                                st.write("2. Review foundational concepts weekly")
+                                                st.write("3. Track your time distribution")
+                                else:
+                                    st.info("No peers found with >=20% performance gap")  # Changed threshold message
                             else:
-                                st.info("No peers found with >=15% performance gap")
+                                st.warning("Could not calculate peer differences")
                         else:
-                            st.warning("Could not calculate peer differences")
-                    else:
-                        st.warning("⚠️ No comparable peers found with similar start dates")
-                except Exception as e:
-                    st.error(f"Comparison failed: {str(e)}")
-            else:
-                st.warning("Select a student to enable peer comparison")
+                            st.warning("⚠️ No comparable peers found with similar start dates")
+                    except Exception as e:
+                        st.error(f"Comparison failed: {str(e)}")
+                else:
+                    st.warning("Select a student to enable peer comparison")
+            # Quiz Section
+            st.markdown('<p class="medium-font">Interactive Quiz Section</p>', unsafe_allow_html=True)
+            try:
+                comp = df[(df.StudentID == sid) & (df.Completed)].Topic.unique().tolist()
+                quiz_topics = [t for t in comp if t in FORMULA_QUIZ_BANK]
 
-        # Quiz Section
-        st.markdown('<p class="medium-font">Interactive Quiz Section</p>', unsafe_allow_html=True)
-        try:
-            comp = df[(df.StudentID == sid) & (df.Completed)].Topic.unique().tolist()
-            quiz_topics = [t for t in comp if t in FORMULA_QUIZ_BANK]
+                if quiz_topics:
+                    c1, c2 = st.columns([1, 2])
+                    with c1:
+                        selected_topic = st.selectbox("Select Quiz Topic", quiz_topics)
+                        if st.button("Start Quiz", type="primary"):
+                            # Initialize quiz session state
+                            st.session_state.show_quiz = True
+                            st.session_state.quiz_topic = selected_topic
+                            st.session_state.quiz_answers = {}
 
-            if quiz_topics:
-                c1, c2 = st.columns([1, 2])
-                with c1:
-                    selected_topic = st.selectbox("Select Quiz Topic", quiz_topics)
-                    if st.button("Start Quiz", type="primary"):
-                        # Initialize quiz session state
-                        st.session_state.show_quiz = True
-                        st.session_state.quiz_topic = selected_topic
-                        st.session_state.quiz_answers = {}
+                            # Pre-initialize all question keys
+                            if selected_topic in FORMULA_QUIZ_BANK:
+                                topic_data = FORMULA_QUIZ_BANK[selected_topic]
+                                for sub, questions in topic_data.items():
+                                    for q in questions:
+                                        q_key = f"q_{selected_topic}_{q['id']}"
+                                        if q_key not in st.session_state:
+                                            st.session_state[q_key] = ""
+                            else:
+                                st.error("Invalid quiz topic selected")
+                                st.session_state.show_quiz = False
 
-                        # Pre-initialize all question keys
-                        topic_data = FORMULA_QUIZ_BANK[selected_topic]
-                        for sub, questions in topic_data.items():
-                            for q in questions:
-                                q_key = f"q_{selected_topic}_{q['id']}"
-                                if q_key not in st.session_state:
-                                    st.session_state[q_key] = ""
+                    with c2:
+                        if st.session_state.get('show_quiz'):
+                            topic = st.session_state.quiz_topic
 
-                with c2:
-                    if st.session_state.get('show_quiz'):
-                        topic = st.session_state.quiz_topic
-                        st.markdown(f"### {topic} Quiz")
+                            # Validate topic exists in quiz bank
+                            if topic not in FORMULA_QUIZ_BANK:
+                                st.error("Invalid quiz topic selected")
+                                return
 
-                        with st.form(key=f"quiz_form_{topic}"):
-                            # Initialize form with proper question IDs
-                            for sub, questions in FORMULA_QUIZ_BANK[topic].items():
-                                st.subheader(f"Section: {sub}")
-                                for q in questions:
-                                    q_key = f"q_{topic}_{q['id']}"
-                                    st.markdown(f"**Q{q['id']}:** {q['question']}")
+                            # Validate questions exist for topic
+                            if not FORMULA_QUIZ_BANK[topic]:
+                                st.error("No questions available for this topic")
+                                return
 
-                                    if q['type'] == 'formula':
-                                        st.text_input("Your answer:",
-                                                      key=q_key,
-                                                      value=st.session_state.get(q_key, ""))
-                                    else:
-                                        options = q.get('options', ["Option A", "Option B", "Option C"])
-                                        st.radio("Select:", options,
-                                                 key=q_key,
-                                                 index=0)
-                                    st.markdown("---")
+                            st.markdown(f"### {topic} Quiz")
 
-                            if st.form_submit_button("Submit Quiz"):
-                                try:
-                                    # Initialize responses structure
-                                    st.session_state.setdefault('quiz_responses', {}).setdefault(sid, {})
-                                    st.session_state.setdefault('question_responses', {}).setdefault(sid, {})
+                            with st.form(key=f"quiz_form_{topic}"):
+                                # Initialize form with proper question IDs
+                                for sub, questions in FORMULA_QUIZ_BANK[topic].items():
+                                    st.subheader(f"Section: {sub}")
+                                    for q in questions:
+                                        q_key = f"q_{topic}_{q['id']}"
+                                        st.markdown(f"**Q{q['id']}:** {q['question']}")
 
-                                    # Process all questions
-                                    for sub, questions in FORMULA_QUIZ_BANK[topic].items():
-                                        for q in questions:
-                                            q_key = f"q_{topic}_{q['id']}"
-                                            student_answer = st.session_state[q_key]
+                                        if q['type'] == 'formula':
+                                            st.text_input("Your answer:",
+                                                          key=q_key,
+                                                          value=st.session_state.get(q_key, ""))
+                                        else:
+                                            options = q.get('options', ["Option A", "Option B", "Option C"])
+                                            st.radio("Select:", options,
+                                                     key=q_key,
+                                                     index=0)
+                                        st.markdown("---")
 
-                                            # Validate answer
-                                            is_correct, feedback = validate_answer(q, student_answer)
+                                if st.form_submit_button("Submit Quiz"):
+                                    try:
+                                        # Initialize response structures if not present
+                                        if 'quiz_responses' not in st.session_state:
+                                            st.session_state.quiz_responses = {}
+                                        if 'question_responses' not in st.session_state:
+                                            st.session_state.question_responses = {}
 
-                                            # Track response
-                                            track_question_response(sid, q['id'], is_correct)
+                                        # Initialize student-specific structures
+                                        if sid not in st.session_state.quiz_responses:
+                                            st.session_state.quiz_responses[sid] = {}
+                                        if sid not in st.session_state.question_responses:
+                                            st.session_state.question_responses[sid] = {}
 
-                                            # Store detailed response
-                                            st.session_state.quiz_responses[sid].setdefault(topic, []).append({
-                                                "qid": q['id'],
-                                                "answer": student_answer,
-                                                "is_correct": is_correct,
-                                                "timestamp": datetime.now().isoformat(),
-                                                "feedback": feedback
-                                            })
+                                        # Validate topic again (defense in depth)
+                                        if topic not in FORMULA_QUIZ_BANK:
+                                            st.error("Invalid quiz topic selected")
+                                            return
 
-                                    # Update knowledge graph
-                                    update_knowledge_graph_with_quiz(st.session_state.knowledge_graph, sid, topic)
+                                        # Validate questions exist for topic
+                                        if not FORMULA_QUIZ_BANK[topic]:
+                                            st.error("No questions available for this topic")
+                                            return
 
-                                    # Clear temporary input states
-                                    for sub, questions in FORMULA_QUIZ_BANK[topic].items():
-                                        for q in questions:
-                                            q_key = f"q_{topic}_{q['id']}"
-                                            if q_key in st.session_state:
-                                                del st.session_state[q_key]
+                                        # Generate responses from form data
+                                        responses = []
+                                        for sub, questions in FORMULA_QUIZ_BANK[topic].items():
+                                            for q in questions:
+                                                q_key = f"q_{topic}_{q['id']}"
+                                                student_answer = st.session_state.get(q_key, "")
+                                                responses.append({
+                                                    "qid": q['id'],
+                                                    "answer": student_answer
+                                                })
 
-                                    st.success("Quiz submitted successfully! Recommendations updated.")
-                                    st.session_state.show_quiz = False
+                                        # Process all responses with the new error handling
+                                        for response in responses:
+                                            try:
+                                                # Find question safely
+                                                question = None
+                                                for t in QUESTION_BANK:
+                                                    for q in QUESTION_BANK[t]:
+                                                        if q['id'] == response['qid']:
+                                                            question = q
+                                                            break
+                                                    if question:
+                                                        break
 
-                                except Exception as e:
-                                    st.error(f"Quiz submission error: {str(e)}")
+                                                if not question:
+                                                    st.error(f"Missing question: {response['qid']}")
+                                                    continue
 
-        except Exception as e:
-            st.error(f"Quiz section error: {str(e)}")
+                                                # Safely get student answer
+                                                student_answer = response['answer']
+
+                                                # Validate answer
+                                                is_correct, feedback = validate_answer(question, student_answer)
+
+                                                # Track response
+                                                track_question_response(sid, question['id'], is_correct)
+
+                                                # Store detailed response
+                                                if topic not in st.session_state.quiz_responses[sid]:
+                                                    st.session_state.quiz_responses[sid][topic] = []
+
+                                                st.session_state.quiz_responses[sid][topic].append({
+                                                    "qid": question['id'],
+                                                    "answer": student_answer,
+                                                    "is_correct": is_correct,
+                                                    "timestamp": datetime.now().isoformat(),
+                                                    "feedback": feedback
+                                                })
+
+                                            except Exception as e:
+                                                st.error(f"Error processing response: {str(e)}")
+                                                continue
+
+                                        # Update knowledge graph
+                                        update_knowledge_graph_with_quiz(st.session_state.knowledge_graph, sid,
+                                                                         topic)
+
+                                        # Clear temporary input states
+                                        for sub, questions in FORMULA_QUIZ_BANK[topic].items():
+                                            for q in questions:
+                                                q_key = f"q_{topic}_{q['id']}"
+                                                if q_key in st.session_state:
+                                                    del st.session_state[q_key]
+
+                                        st.success("Quiz submitted successfully! Recommendations updated.")
+                                        st.session_state.show_quiz = False
+
+                                    except Exception as e:
+                                        st.error(f"Quiz submission error: {str(e)}")
+                                        import traceback
+                                        st.error(traceback.format_exc())
+
+            except Exception as e:
+                st.error(f"Quiz section error: {str(e)}")
+                import traceback
+                st.error(traceback.format_exc())
         # Performance Analytics
         st.markdown('<p class="medium-font">Performance Analytics</p>', unsafe_allow_html=True)
         try:
@@ -1574,4 +1804,3 @@ def main():
         st.stop()
 if __name__ == "__main__":
     main()
-
