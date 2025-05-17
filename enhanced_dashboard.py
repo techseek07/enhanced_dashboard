@@ -1,6 +1,4 @@
 # enhanced_dashboard_complete.py
-import re
-import math
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -70,37 +68,19 @@ APPLICATION_RELATIONS = {
 # (Optional) A minimal quiz bank just to keep the pipeline alive
 FORMULA_QUIZ_BANK = {
     'Algebra': {
-        'Quadratic Equations': [
-            {
-                "id": "alg_q1",
-                "question": "x²−5x+6=0 → x?",
-                "type": "formula",
-                "answer": "2 or 3",
-                "solution_steps": ["Factor: (x-2)(x-3)=0", "Solutions: x=2, x=3"]
-            }
+        'Quadratic': [
+            {"id":"alg_q1","question":"x²−5x+6=0 → x?","type":"formula","answer":"2 or 3"}
         ]
     },
     'Calculus': {
         'Derivative Rules': [
-            {
-                "id": "calc_q1",
-                "question": "d/dx(x³)=?",
-                "type": "formula",
-                "answer": "3x²",
-                "solution_steps": ["Apply the power rule: d/dx(xⁿ) = nxⁿ⁻¹ where n=3."]
-            }
+            {"id":"calc_q1","question":"d/dx(x³)=?","type":"formula","answer":"3x²"}
         ]
     },
     'Chemistry': {
-        'Gas Laws': [
-            {
-                "id": "chem_q1",
-                "question": "PV=nRT → solve for T",
-                "type": "formula",
-                "answer": "T=PV/(nR)",
-                "solution_steps": ["Divide both sides of the equation by 'nR' to isolate 'T'."]
-            }
-        ]
+        'Gas Law': [
+            {"id":"chem_q1","question":"PV=nRT → solve for T","type":"formula","answer":"T=PV/(nR)"}
+        ],
     }
 }
 
@@ -108,28 +88,19 @@ if "quiz_progress" not in st.session_state:
     st.session_state.quiz_progress = {}
 QUESTION_BANK = {
     'Algebra': [
-        {"id":"alg_q1",
-         "text":"x²−5x+6=0 → x?",
-         "difficulty":1,
-         "type":"formula",
-         "answer":"2 or 3",
-         "solution_steps":["Factor: (x-2)(x-3)=0", "Solutions: x=2, x=3"]}
+        {"id":"alg_q1","text":"2x+3=7, x=?","difficulty":1,"type":"free_response","answer":"2"}
+    ],
+    'Geometry': [
+        {"id":"geo_q1","text":"Area of triangle base=4,h=3","difficulty":1,
+         "type":"free_response","answer":"6"}
     ],
     'Calculus': [
-        {"id":"calc_q1",
-         "text":"d/dx(x³)=?",
-         "difficulty":1,
-         "type":"formula",
-         "answer":"3x²",
-         "solution_steps":["Apply power rule"]}
+        {"id":"calc_q1","text":"∫2x dx from 0 to 2","difficulty":1,
+         "type":"free_response","answer":"4"}
     ],
     'Chemistry': [
-        {"id":"chem_q1",
-         "text":"PV=nRT → solve for T",
-         "difficulty":1,
-         "type":"formula",
-         "answer":"T=PV/(nR)",
-         "solution_steps":["Divide both sides by nR"]}
+        {"id":"chem_q1","text":"Balance H₂ + O₂ → H₂O","difficulty":1,
+         "type":"free_response","answer":"2H₂+O₂→2H₂O"}
     ]
 }
 # Question response tracking
@@ -155,32 +126,27 @@ PRACTICE_QUESTIONS = {
     'Algebra': {
         'recent': ['Factoring Polynomials', 'Solving Quadratics'],
         'historical': ['Linear Equations', 'Basic Operations'],
-        'fundamental': ['Number Sense', 'Order of Operations'],
-        'mid_level': ['Rational Expressions', 'Systems of Equations']
+        'fundamental': ['Number Sense', 'Order of Operations']
     },
     'Geometry': {
         'recent': ['Triangle Congruence', 'Circle Theorems'],
         'historical': ['Angle Relationships', 'Pythagorean Theorem'],
-        'fundamental': ['Basic Shapes', 'Area Formulas'],
-        'mid_level': ['Coordinate Geometry', 'Mensuration (2D)']
+        'fundamental': ['Basic Shapes', 'Area Formulas']
     },
     'Calculus': {
         'recent': ['Derivative Rules', 'Integration Techniques'],
         'historical': ['Limits', 'Continuity'],
-        'fundamental': ['Function Behavior', 'Graphing'],
-        'mid_level': ['Applications of Derivatives', 'Basic Integration']
+        'fundamental': ['Function Behavior', 'Graphing']
     },
     'Chemistry': {
         'recent': ['Balancing Equations', 'Stoichiometry'],
         'historical': ['Periodic Table', 'Chemical Bonds'],
-        'fundamental': ['States of Matter', 'Element Properties'],
-        'mid_level': ['Solutions', 'Electrochemistry']
+        'fundamental': ['States of Matter', 'Element Properties']
     },
     'Biology': {
         'recent': ['Cell Division', 'Heredity'],
         'historical': ['Cell Structure', 'Classification'],
-        'fundamental': ['Life Processes', 'Scientific Method'],
-        'mid_level': ['Genetics', 'Ecology and Environment']
+        'fundamental': ['Life Processes', 'Scientific Method']
     }
 }
 
@@ -238,14 +204,18 @@ MOTIVATION_QUOTES = {
 def generate_student_data(num_students=500):
     np.random.seed(42)
     rows = []
-    study_profiles = ['video_heavy', 'practice_heavy', 'quiz_heavy', 'balanced']
-    profile_dist = [0.3, 0.25, 0.2, 0.25]
+    hardwired_students = [
+        {'skill': 0.95, 'mot': 'High', 'correct_rate': 0.9, 'time_factor': 0.7},
+        {'skill': 0.65, 'mot': 'Medium', 'correct_rate': 0.58, 'time_factor': 1.0},
+        {'skill': 0.25, 'mot': 'Low', 'correct_rate': 0.35, 'time_factor': 1.5}
+    ]
 
     # Helper function for safe subtopic sampling
     def get_subtopics(subtopic_list):
         try:
             if not subtopic_list or len(subtopic_list) == 0:
                 return [None] * 3
+
             # Always return 3 elements, using replacement if needed
             replace = len(subtopic_list) < 3
             sampled = np.random.choice(
@@ -255,193 +225,138 @@ def generate_student_data(num_students=500):
             )
             return list(sampled)
         except Exception as e:
-            print(f"Subtopic sampling error: {str(e)}")
+            st.error(f"Subtopic sampling error: {str(e)}")
             return [None] * 3
 
+    # Hardwired students generation
+    for sid in range(3):
+        hw = hardwired_students[sid]
+        exam_date = datetime.now() - timedelta(days=30)
+        done = ['Algebra', 'Geometry', 'Chemical Bonding'] if sid == 0 else ['Algebra']
+
+        for topic in TOPICS:
+            subtopics = SUBTOPICS.get(topic, [])
+            for _ in range(5):  # Fixed interaction count
+                subs = get_subtopics(subtopics)
+                # Force performance characteristics
+                corr = np.random.binomial(1, hw['correct_rate'])
+                tkt = max(0.1, np.random.gamma(2, 1.5) * hw['time_factor'])
+                rows.append({
+                    'StudentID': sid,
+                    'Topic': topic,
+                    'Subtopic1': subs[0],
+                    'Subtopic2': subs[1],
+                    'Subtopic3': subs[2],
+                    'Weight1': 0.4,
+                    'Weight2': 0.3,
+                    'Weight3': 0.3,
+                    'Correct': corr,
+                    'TimeTaken': tkt,
+                    'ExamDate': exam_date,
+                    'Completed': topic in done,
+                    'MotivationLevel': hw['mot'],
+                    'VideosWatched': 5 if sid == 0 else 3,
+                    'QuizzesTaken': 4 if sid == 0 else 1,
+                    'PracticeSessions': 6 if sid == 0 else 2,
+                    'MediaClicks': 3,
+                    'QuizProgress': 0
+                })
+
+    # Regular students generation
+    num_students = max(1, num_students)
     for sid in range(num_students):
-        try:
-            # Profile selection
-            study_profile = np.random.choice(study_profiles, p=profile_dist)
+        exam_date = datetime.now() + timedelta(days=np.random.randint(7, 60))
+        skill = np.clip(np.random.beta(2, 1.5), 0.01, 0.99)
+        mot = np.random.choice(['High', 'Medium', 'Low'], p=[0.5, 0.3, 0.2])
 
-            # Base characteristics
-            exam_date = datetime.now() - timedelta(days=np.random.randint(1, 60))
-            base_skill = np.random.beta(2, 1.5)
-            motivation = np.random.choice(['High', 'Medium', 'Low'], p=[0.4, 0.4, 0.2])
-            mf = {'High': 1.4, 'Medium': 1.0, 'Low': 0.6}.get(motivation, 1.0)  # Safe lookup
+        # Safe topic completion handling
+        done = []
+        if TOPICS:
+            try:
+                done = np.random.choice(
+                    TOPICS,
+                    size=np.random.randint(0, len(TOPICS) + 1),
+                    replace=False
+                ).tolist()
+            except ValueError as e:
+                st.error(f"Topic selection error: {str(e)}")
+                done = []
 
-            # Profile-driven behavior
-            if study_profile == 'video_heavy':
-                vids = max(0, np.random.poisson(4))
-                prac = max(0, np.random.poisson(1))
-                qz = max(0, np.random.poisson(1))
-            elif study_profile == 'practice_heavy':
-                vids = max(0, np.random.poisson(1))
-                prac = max(0, np.random.poisson(5))
-                qz = max(0, np.random.poisson(2))
-            elif study_profile == 'quiz_heavy':
-                vids = max(0, np.random.poisson(2))
-                prac = max(0, np.random.poisson(2))
-                qz = max(0, np.random.poisson(4))
-            else:  # balanced
-                vids = max(0, np.random.poisson(2))
-                prac = max(0, np.random.poisson(3))
-                qz = max(0, np.random.poisson(2))
+        for topic in TOPICS:
+            # Safe interaction count calculation
+            interaction_count = min(max(np.random.poisson(3) + 1, 1), 10)
 
-            # Safe topic completion handling
-            done_topics = []
-            if TOPICS:
+            for _ in range(interaction_count):
+                subtopics = SUBTOPICS.get(topic, [])
+                subs = get_subtopics(subtopics)
+
+                # Dirichlet distribution safety
                 try:
-                    done_topics = np.random.choice(
-                        TOPICS,
-                        size=np.random.randint(0, len(TOPICS) + 1),
-                        replace=False
-                    ).tolist()
-                except ValueError as e:
-                    print(f"Topic selection error: {str(e)}")
-                    done_topics = []
+                    wts = np.random.dirichlet(np.ones(3))
+                    wts /= wts.sum()
+                except Exception as e:
+                    wts = [0.4, 0.3, 0.3]
+                    st.error(f"Weight generation error: {str(e)}")
 
-            # Per-topic interactions
-            for topic in TOPICS:
-                # Safe interaction count calculation
-                interaction_count = min(max(np.random.poisson(3) + 1, 1), 10)
-                done = topic in done_topics or np.random.rand() < 0.3  # 30% completion probability
+                # Quiz progress validation
+                quiz_bank = FORMULA_QUIZ_BANK.get(topic, {})
+                qp_max = max(1, len(quiz_bank))
+                qp = np.random.randint(0, qp_max) if qp_max > 0 else 0
+                # Motivation factor with bounds
+                mf = {'High': 1.5, 'Medium': 1.0, 'Low': 0.7}.get(mot, 1.0)
 
-                for _ in range(interaction_count):
-                    # Subtopic handling
-                    subtopics = SUBTOPICS.get(topic, [])
-                    subs = get_subtopics(subtopics)
+                # Binomial success with probability clamping
+                success_prob = skill * mf
+                corr = np.random.binomial(1, np.clip(success_prob, 0.01, 0.99))
 
-                    # Success probability with model relationship between behaviors and outcomes
-                    success_prob = np.clip(
-                        base_skill * mf * (1 + 0.1 * vids + 0.15 * prac + 0.07 * qz),
-                        0.1, 0.95
-                    )
+                # Time taken with gamma distribution safeguards
+                tkt = max(0.1, np.random.gamma(2, 1.5) * (2 - mf))
 
-                    # Quiz progress validation
-                    quiz_bank = FORMULA_QUIZ_BANK.get(topic, {})
-                    qp_max = max(1, len(quiz_bank))
-                    qp = np.random.randint(0, qp_max) if qp_max > 0 else 0
-
-                    # Dirichlet distribution for weights with safety
-                    try:
-                        wts = np.random.dirichlet(np.ones(3))
-                        wts /= wts.sum()  # Ensure sum to 1
-                    except Exception as e:
-                        wts = [0.4, 0.3, 0.3]
-                        print(f"Weight generation error: {str(e)}")
-
-                    # Time modeling with skill and motivation factors
-                    time_factor = 2 - mf  # Inverse relationship: higher motivation -> less time
-                    tkt = max(0.1, np.random.gamma(2, 1.5) * time_factor)
-
-                    rows.append({
-                        'StudentID': sid,
-                        'Topic': topic,
-                        'Subtopic1': subs[0],
-                        'Subtopic2': subs[1],
-                        'Subtopic3': subs[2],
-                        'Weight1': wts[0],
-                        'Weight2': wts[1],
-                        'Weight3': wts[2],
-                        'Correct': np.random.binomial(1, success_prob),
-                        'TimeTaken': tkt,
-                        'ExamDate': exam_date,
-                        'Completed': done,
-                        'MotivationLevel': motivation,
-                        'VideosWatched': vids,
-                        'PracticeSessions': prac,
-                        'QuizzesTaken': qz,
-                        'MediaClicks': max(0, np.random.poisson(2)),
-                        'QuizProgress': qp,
-                        'StudyProfile': study_profile,
-                        'ConsistencyScore': np.random.beta(3, 1)
-                    })
-        except Exception as e:
-            print(f"Error generating data for student {sid}: {str(e)}")
-            continue
+                # Usage metrics with validation
+                vids = max(0, np.random.poisson(1))
+                qz = max(0, np.random.binomial(1, 0.3))
+                prac = max(0, np.random.poisson(2))
+                media = max(0, np.random.poisson(1))
+                rows.append({
+                    'StudentID': sid,
+                    'Topic': topic,
+                    'Subtopic1': subs[0],
+                    'Subtopic2': subs[1],
+                    'Subtopic3': subs[2],
+                    'Weight1': wts[0],
+                    'Weight2': wts[1],
+                    'Weight3': wts[2],
+                    'Correct': corr,
+                    'TimeTaken': tkt,
+                    'ExamDate': exam_date,
+                    'Completed': topic in done,
+                    'MotivationLevel': mot,
+                    'VideosWatched': vids,
+                    'QuizzesTaken': qz,
+                    'PracticeSessions': prac,
+                    'MediaClicks': media,
+                    'QuizProgress': qp
+                })
 
     return pd.DataFrame(rows)
 
 
 def validate_answer(question, student_answer):
-    """Enhanced validation with normalization and flexible matching"""
+    """Enhanced validation with error handling"""
     try:
-        # Normalization function for answer comparison
-        def normalize_answer(answer):
-            """Process answer for consistent comparison"""
-            if not isinstance(answer, str):
-                answer = str(answer)
+        if question['type'] == 'free_response':
+            correct = str(student_answer).strip() == str(question.get('answer', '')).strip()
+            solution = question.get('solution_steps', 'No solution available')
+            return correct, f"Solution: {solution}"
 
-            # Standard normalization steps
-            normalized = answer.lower().strip()
-            normalized = re.sub(r'\s+', ' ', normalized)  # Collapse whitespace
-            normalized = re.sub(r'[;,]\s*', ',', normalized)  # Standardize separators
-            normalized = re.sub(r'[^a-z0-9.,=+-]', '', normalized)  # Remove special chars
-
-            # Handle mathematical equivalences
-            normalized = normalized.replace('^', '')  # x² vs x2
-            normalized = normalized.replace('\\frac', '/')  # LaTeX fractions
-            normalized = re.sub(r'\.0+$', '', normalized)  # 2.0 → 2
-
-            return normalized
-
-        # Get question type and parameters
-        q_type = question.get('type', 'unknown')
-        correct_answer = str(question.get('answer', '')).strip()
-        solution = question.get('solution_steps', 'No solution available')
-
-        # Normalize both answers
-        norm_correct = normalize_answer(correct_answer)
-        norm_student = normalize_answer(student_answer)
-
-        if q_type == 'free_response':
-            # Handle multiple valid answer formats
-            correct_parts = sorted(re.split(r'[,/]', norm_correct))
-            student_parts = sorted(re.split(r'[,/]', norm_student))
-
-            # Check for complete match (order-independent)
-            if set(correct_parts) == set(student_parts):
-                return True, f"Solution: {solution}"
-
-            # Check numerical equivalence
-            try:
-                correct_num = float(norm_correct)
-                student_num = float(norm_student)
-                if math.isclose(correct_num, student_num, rel_tol=0.01):
-                    return True, f"Solution: {solution}"
-            except (ValueError, TypeError):
-                pass
-
-            # Partial credit for multi-part answers
-            common = set(correct_parts) & set(student_parts)
-            if common:
-                partial = len(common) / len(correct_parts)
-                return (False,
-                        f"Partial credit ({partial:.0%}): "
-                        f"Missing {set(correct_parts) - set(student_parts)}")
-
-            return False, f"Solution: {solution}"
-
-        elif q_type == 'multiple_choice':
+        elif question['type'] == 'multiple_choice':
             options = question.get('options', [])
             correct_index = question.get('correct_option', -1)
-
             if correct_index < 0 or correct_index >= len(options):
                 return False, "Invalid question configuration"
+            return student_answer == correct_index, f"Correct answer: {options[correct_index]}"
 
-            # Normalize both the option and student answer
-            normalized_options = [normalize_answer(opt) for opt in options]
-            norm_student_choice = normalize_answer(student_answer)
-
-            # Match either index or normalized text
-            if (student_answer == correct_index) or \
-                    (norm_student_choice == normalize_answer(options[correct_index])):
-                return True, f"Correct answer: {options[correct_index]}"
-
-            return False, f"Correct answer: {options[correct_index]}"
-
-        else:
-            return False, "Unsupported question type"
+        return False, "Unsupported question type"
 
     except Exception as e:
         st.error(f"Validation error: {str(e)}")
@@ -518,106 +433,119 @@ def recommend_topper_resources(seg, df):
     if seg.empty or df.empty:
         return []
 
-        # Get toppers' strong topics
-        # ------------------------------
-        # Modified section
-    toppers = seg[seg.label == 'Topper'].StudentID.tolist()
+    usage = df.groupby('StudentID').agg(Videos=('VideosWatched', 'sum'),
+                                        Quizzes=('QuizzesTaken', 'sum'),
+                                        Practice=('PracticeSessions', 'sum'),
+                                        Media=('MediaClicks', 'sum')).reset_index()
 
-    # Get most frequent topic for each topper
-    strong_topics = (
-        df[df.StudentID.isin(toppers)]
-        .groupby('StudentID')
-        .apply(lambda x: x.Topic.mode()[0])  # Get most frequent topic
-        .value_counts()  # Count how many toppers have each topic as strong
-    )
+    usage = usage.merge(seg[['StudentID', 'label']], on='StudentID', how='inner')
 
-    if not strong_topics.empty:
-        return [f"🌟 Top | Master {t} first" for t in strong_topics.index[:3]]
-    # ------------------------------
+    # Check if we have toppers
+    toppers = usage[usage.label == 'Topper']
+    if toppers.empty:
+        return ["No top performers identified yet."]
 
-    return ["No top performer patterns found"]
+    topper_means = toppers.mean(numeric_only=True).sort_values(ascending=False)
 
-def progression_summary(df, student1, student2, time_tolerance=0.35, perf_gap=0.2):
+    # Get top 3 metrics (excluding StudentID)
+    if 'StudentID' in topper_means:
+        topper_means = topper_means.drop('StudentID')
+
+    top3 = topper_means.head(3)
+    return [f"Top performers average {v:.1f} {k}" for k, v in top3.items()]
+
+def calculate_odds_ratio(table):
+    """Calculate odds ratio from a 2x2 contingency table."""
+    try:
+        a, b = table[0]
+        c, d = table[1]
+        # Apply Haldane-Anscombe correction (add 0.5 to all cells)
+        # This handles zeros in the contingency table
+        return ((a + 0.5) * (d + 0.5)) / ((b + 0.5) * (c + 0.5))
+    except Exception:
+        return float('nan')
+
+
+def progression_summary(df, student1, student2, time_tolerance=0.15, perf_gap=0.2):
     """
     Compare two students with:
     - Similar start dates (±15 days)
     - Similar total time spent (±15%)
     - Academic performance gap >20%
     """
+    # Get student data
     s1_data = df[df.StudentID == student1]
     s2_data = df[df.StudentID == student2]
 
+    # Calculate first interaction dates
     s1_start = s1_data.ExamDate.min()
     s2_start = s2_data.ExamDate.min()
 
+    # Calculate total time spent (in hours)
     s1_duration = s1_data.TimeTaken.sum()
     s2_duration = s2_data.TimeTaken.sum()
 
+    # Calculate performance metrics
     s1_perf = s1_data.Correct.mean()
     s2_perf = s2_data.Correct.mean()
 
     insights = []
 
+    # 1. Validate time alignment
     if abs((s1_start - s2_start).days) > 40:
-        return ["Students started more than 40 days apart - not comparable"]
+        return ["Students started more than 15 days apart - not comparable"]
 
+    # 2. Validate time investment
     duration_ratio = abs(s1_duration - s2_duration) / max(s1_duration, s2_duration)
     if duration_ratio > time_tolerance:
-        return [f"Time spent on app differs by {duration_ratio:.0%} - beyond {time_tolerance:.0%} threshold"]
+        return [f"Time spent differs by {duration_ratio:.0%} - beyond {time_tolerance:.0%} threshold"]
 
+    # 3. Validate performance gap
     perf_diff = abs(s1_perf - s2_perf)
     if perf_diff < perf_gap:
         return [f"Performance difference {perf_diff:.0%} < {perf_gap:.0%} threshold"]
 
+    # Identify better performer
     better_student = student1 if s1_perf > s2_perf else student2
     weaker_student = student2 if better_student == student1 else student1
 
-    metrics = ['VideosWatched', 'QuizzesTaken', 'PracticeSessions', 'MediaClicks']
+    # Compare usage patterns
+    metrics = ['VideosWatched', 'QuizzesTaken',
+               'PracticeSessions', 'MediaClicks']
 
     comparisons = []
     for metric in metrics:
-        s1_val = int(s1_data[metric].sum())
-        s2_val = int(s2_data[metric].sum())
+        s1_val = s1_data[metric].sum()
+        s2_val = s2_data[metric].sum()
         diff = s1_val - s2_val
 
         comparisons.append({
             'metric': metric,
-            's1_val': s1_val,
-            's2_val': s2_val,
+            'better': max(s1_val, s2_val),
+            'weaker': min(s1_val, s2_val),
             'diff': abs(diff),
-            'direction': 'ahead' if diff > 0 else 'behind'
+            'direction': 'higher' if diff > 0 else 'lower'
         })
 
+    # Sort by largest absolute differences
     comparisons.sort(key=lambda x: x['diff'], reverse=True)
 
+    # Generate insights
     insights.append(
-        f"🏆 Better Performer: Student {better_student} "
-        f"({s1_perf if better_student == student1 else s2_perf:.0%} vs "
-        f"{s2_perf if better_student == student1 else s1_perf:.0%})"
+        f"🏆 Better Performer: Student {better_student} ({s1_perf if better_student == student1 else s2_perf:.0%} vs {s2_perf if better_student == student1 else s1_perf:.0%})")
+
+    for comp in comparisons[:3]:  # Top 3 differences
+        insights.append(
+            f"📊 {comp['metric']}: {comp['better']} vs {comp['weaker']} "
+            f"({comp['direction']} by {comp['diff']})"
+        )
+
+    # Add strategic recommendations
+    top_diff = comparisons[0]
+    insights.append(
+        f"🚀 Recommendation: Focus on increasing {top_diff['metric'].lower()} "
+        f"activities by {top_diff['diff']} sessions/week"
     )
-
-    for comp in comparisons[:3]:
-        try:
-            insights.append(
-                f"📊 {comp['metric']}: You're {comp['direction']} by {comp['diff']} "
-                f"(You: {comp['s1_val']} vs Them: {comp['s2_val']})"
-            )
-        except Exception as e:
-            st.error(f"Invalid comparison values: {str(e)}")
-            continue
-
-    if comparisons:
-        try:
-            top_diff = comparisons[0]
-            action = "Increase" if top_diff['direction'] == 'behind' else "Maintain"
-            insights.append(
-                f"🚀 Recommendation: {action} {top_diff['metric'].replace('Watched', '').replace('Taken', '').lower()} "
-                f"activities (+{top_diff['diff']} sessions/week)"
-            )
-        except Exception as e:
-            insights.append("🚀 Recommendation: Focus on balanced study habits")
-    else:
-        insights.append("🚀 Recommendation: Review core concepts and practice regularly")
 
     return insights
 
@@ -849,90 +777,37 @@ def apply_dual_tier_scoring(G):
 
 def update_knowledge_graph_with_quiz(G, sid, topic):
     """More impactful graph updates"""
-    try:
-        responses = st.session_state.quiz_responses.get(sid, {}).get(topic, [])
+    responses = st.session_state.quiz_responses.get(sid, {}).get(topic, [])
 
-        # 1. Safer mastery calculation
-        total = len(responses)
-        if total == 0:
-            return
+    # Calculate concept mastery score (0-1)
+    mastery = sum(r['is_correct'] for r in responses) / max(1, len(responses))
 
-        mastery = sum(1 for r in responses if r.get('is_correct', False)) / total
-        mastery = min(max(mastery, 0), 1)  # Clamp between 0-1
+    # Update node properties
+    if G.has_node(topic):
+        G.nodes[topic]['mastery'] = mastery
+        G.nodes[topic]['last_attempt'] = datetime.now().isoformat()
 
-        # 2. Safe node updates
-        if G.has_node(topic):
-            G.nodes[topic]['mastery'] = mastery
-            G.nodes[topic]['last_attempt'] = datetime.now().isoformat()
-            st.success(f"Updated mastery for {topic} to {mastery:.0%}")
+    # Visual feedback
+    st.success(f"Updated mastery for {topic} to {mastery:.0%}")
 
-        # 3. Robust subtopic processing
-        seen_subtopics = set()
-        subtopic_weights = Counter()
+    # Update subtopic connections
+    seen_subtopics = set()
+    subtopic_weights = Counter()
 
-        for response in responses:
-            try:
-                # 4. Safe question lookup across all topics
-                question = None
-                for t in QUESTION_BANK:
-                    for q in QUESTION_BANK[t]:
-                        if q['id'] == response['qid']:
-                            question = q
-                            break
-                    if question:
-                        break
+    # Existing subtopic processing logic
+    for response in responses:
+        question = next(q for q in QUESTION_BANK[topic] if q['id'] == response['qid'])
+        for i in (1, 2, 3):
+            subtopic = question.get(f'subtopic{i}', None)
+            if subtopic:
+                subtopic_weights[subtopic] += response['is_correct']
 
-                if not question:
-                    st.error(f"Missing question: {response['qid']}")
-                    continue
-
-                # 5. Validate subtopic fields
-                for i in (1, 2, 3):
-                    subtopic = question.get(f'subtopic{i}')
-                    if subtopic:
-                        subtopic_weights[subtopic] += int(response.get('is_correct', 0))
-
-            except Exception as e:
-                st.error(f"Error processing response: {str(e)}")
-                continue
-
-        # 6. Safe edge creation
-        for subtopic, weight in subtopic_weights.most_common(2):
-            if not G.has_node(subtopic):
-                G.add_node(subtopic, type='subtopic')
-                seen_subtopics.add(subtopic)
-            G.add_edge(topic, subtopic, relation='subtopic', weight=weight)
-
-    except Exception as e:
-        st.error(f"Knowledge graph update failed: {str(e)}")
-
-
-def get_connected_practice_topics(G, completed_topics, sid):
-    """Get topics connected to completed ones with tier 1/2 edges"""
-    practice_topics = []
-
-    # Edge tier mapping (1=strong, 2=medium, 3=weak)
-    for t in completed_topics:
-        # Get neighbors with strong/medium connections
-        neighbors = []
-        for _, neighbor, data in G.out_edges(t, data=True):
-            if data.get('tier', 3) in [1, 2]:  # Only strong/medium tiers
-                neighbors.append((neighbor, data.get('weight', 1)))
-
-        # Sort by connection strength
-        neighbors.sort(key=lambda x: -x[1])
-        practice_topics.extend([n[0] for n in neighbors[:2]])  # Top 2 per topic
-
-    # Get unique topics with completion status
-    return [t for t in practice_topics
-            if t in completed_topics][:3]  # Max 3 recommendations
-def get_connection_strength(G, topic, completed):
-    """Calculate average edge strength from completed topics"""
-    strengths = []
-    for ct in completed:
-        if G.has_edge(ct, topic):
-            strengths.append(G[ct][topic].get('weight', 1))
-    return f"{np.mean(strengths):.1f}/5" if strengths else "N/A"
+    # Keep existing subtopic relationship creation
+    for subtopic, weight in subtopic_weights.most_common(2):
+        if not G.has_node(subtopic):
+            G.add_node(subtopic, type='subtopic')
+            seen_subtopics.add(subtopic)
+        G.add_edge(topic, subtopic, relation='subtopic', weight=weight)
 # ==================================================================
 # 4. Collaborative Filtering & Peer Tutoring
 # ==================================================================
@@ -1044,30 +919,20 @@ def suggest_peer_tutoring(sid, df, seg):
 # ==================================================================
 # 5. Quiz Helpers
 # ==================================================================
-def get_quiz_recommendations(sid, sd):
+def get_quiz_recommendations(sid, completed):
     rec = []
-    completed_topics = sd[sd.Completed].Topic.unique()
-    topic_perf = sd.groupby('Topic').Correct.mean()
 
-    for t in completed_topics:
-        accuracy = topic_perf.get(t, 1.0)
-        if accuracy < 0.35 and t in FORMULA_QUIZ_BANK:
+    # Only recommend topics the student has completed
+    for t in completed:
+        if t in FORMULA_QUIZ_BANK:
+            # Get current progress or default to 0
             p = st.session_state.quiz_progress.setdefault(sid, {}).get(t, 0)
             subs = list(FORMULA_QUIZ_BANK[t].keys())
 
-            status = "Needs practice" if accuracy < 0.5 else "Review ready"
-            color = "🔴" if accuracy < 0.5 else "🟢"
-
+            # Recommend next subtopic if available
             if p < len(subs):
-                rec.append(
-                    f"📝 Quiz | {subs[p]} ({t}) {color} "
-                    f"[Your score: {accuracy:.0%}]"
-                )
-            else:
-                rec.append(
-                    f"🎯 Mastered | {t} quizzes 🟢 "
-                    f"[Final accuracy: {accuracy:.0%}]"
-                )
+                rec.append(f"📝 Quiz Alert: {subs[p]} ({t})")
+
     return rec
 
 # ==================================================================
@@ -1090,105 +955,93 @@ def get_recommendations(sid, df, G, seg, mot='High'):
     comp = sd[sd.Completed].Topic.unique().tolist()
 
     rec = []
-    topper_recs = recommend_topper_resources(seg, df)
-    if topper_recs:
-        rec.extend([f"🌟 Topper_habit | {r}" for r in topper_recs[:3]])
+
     # 1) Add a motivation quote
     if comp:
         selected_topic = np.random.choice(comp)
         if selected_topic in MOTIVATION_QUOTES:
-            rec.append(f"💭Quote | \"{MOTIVATION_QUOTES[selected_topic]}\"")
+            rec.append(f"💭 \"{MOTIVATION_QUOTES[selected_topic]}\"")
 
-    # 2) Bridge course recommendations for critical low-accuracy topics
-    critical_low_topics = acc[acc < 0.3].index.tolist()
-    for t in critical_low_topics:
+    # 2) Bridge course recommendations for low‐accuracy topics
+    low_topics = acc[acc < 0.3].index.tolist()
+    for t in low_topics:
         if t in BRIDGE_COURSES:
-            rec.append(f"🚨 Urgent_course | {t} - {BRIDGE_COURSES[t]} [Accuracy: {acc[t]:.0%}]")
+            rec.append(f"🚧 Bridge: {t} - {BRIDGE_COURSES[t]}")
+        else:
+            rec.append(f"🚧 Bridge: {t}")
 
-    # 3) HOTS for strong topics (accuracy >=70% and motivation not Low)
+    # 3) HOTS for high‐accuracy topics (unless motivation is Low)
     if mot != 'Low':
-        strong_topics = acc[acc >= 0.7].index.tolist()
-        for t in strong_topics[:2]:  # Limit to 2 strongest
+        high_topics = acc[acc > 0.7].index.tolist()
+        for t in high_topics[:2]:
             if t in HOTS_QUESTIONS:
-                rec.append(
-                    f"🏆 Strong(HOTS) | {t} (Accuracy: {acc[t]:.0%}) - "
-                    f"Try: {', '.join(HOTS_QUESTIONS[t][:2])}"
-                )
-    # 4) Practice recommendations (combined logic)
-    if comp:
-        practice_topics = list(set(
-            acc[(acc >= 0.4) & (acc < 0.7)].index.tolist()[:3] +  # Mid-strength
-            get_connected_practice_topics(G, comp, sid)  # Connected
-        ))[:3]  # Unique topics, max 3
+                rec.append(f"🧠 HOTS {t}: {', '.join(HOTS_QUESTIONS[t][:2])}")
 
-        for t in practice_topics:
-            if t in PRACTICE_QUESTIONS:
-                pq = PRACTICE_QUESTIONS[t]
-                # Unified priority sequence
-                seq = (pq.get('recent', []) +
-                       pq.get('mid_level', []) +
-                       pq.get('historical', []) +
-                       pq.get('fundamental', []))
-
-                # Connection context
-                conn_strength = get_connection_strength(G, t, comp)
-                context = " (connected)" if conn_strength else " (practice zone)"
-
-                rec.append(
-                    f"📚 Practice(less_than_70) | {t}{context} [{acc[t]:.0%} accuracy] - " +
-                    f"{', '.join(seq[:3])} " +
-                    f"[Strength: {conn_strength}]"
-                )
+    # 4) Practice recommendations for up to 3 completed topics
+    for t in comp[:3]:
+        if t in PRACTICE_QUESTIONS:
+            pq = PRACTICE_QUESTIONS[t]
+            seq = pq.get('recent', []) + pq.get('historical', []) + pq.get('fundamental', [])
+            rec.append(f"📚 Practice {t}: {', '.join(seq[:3])}")
 
     # 5) Quiz recommendations
-    quiz_recs = [f"📝 Quiz | {q}" for q in get_quiz_recommendations(sid, sd)]
+    quiz_recs = get_quiz_recommendations(sid, comp)
     rec.extend(quiz_recs[:2])
-    # New: Needs Work recommendations (20-59% accuracy)
-    needs_work_topics = acc[(acc >= 0.2) & (acc < 0.6)].index.tolist()
-    for t in needs_work_topics:
-        rec.append(f"🚨 Needs Work | {t} - Focused Practice Plan [Accuracy: {acc[t]:.0%}]")
 
     # 6) Media & analogies
-    seen_videos = set()
-    for t in comp[:2]:  # Limit to 2 recent completions
-        if m := MEDIA_LINKS.get(t):
-            for video in m.get('videos', [])[:1]:
-                if video not in seen_videos:
-                    rec.append(f"🎥 Media | {video}")
-                    seen_videos.add(video)
-            if analogy := m.get('analogies'):
-                rec.append(f"🔗 Analogy | {analogy}")
-    for t in acc[acc < 0.5].index.tolist():
-        if not MEDIA_LINKS.get(t):
-            rec.append(f"🎥 Media | General {t} Concepts: https://example.com/{t.replace(' ', '')}-intro")
-            rec.append(f"🔗 Analogy | {t} is like... [Ask teacher for analogy]")
+    hard_topics = acc[acc < 0.5].index.tolist()
+    # first, videos for up to 2 completed topics
+    for t in comp[:2]:
+        m = MEDIA_LINKS.get(t, {})
+        if m.get('videos'):
+            rec.append(f"🎥 Media: {', '.join(m['videos'][:1])}")
+            # then, analogies for all “hard” topics
+    for t in hard_topics:
+        m = MEDIA_LINKS.get(t, {})
+        if m.get('analogies'):
+            rec.append(f"🔗 Analogy: {m['analogies']}")
 
+    # 7) Formula revision materials for low‐performing topics
+    for t in low_topics[:2]:
+        if t in FORMULA_REVISION:
+            rec.append(f"📊 Formula Help {t}: {', '.join(FORMULA_REVISION[t][:2])}")
 
     # 8) Easy‐win topics if motivation is Low
     if mot == 'Low' and comp:
         easy_topic = np.random.choice(comp)
         if easy_topic in EASY_TOPICS:
-            rec.append(f"👍 Easy | {easy_topic} - {EASY_TOPICS[easy_topic][0]}")
+            rec.append(f"👍 Easy Win: {easy_topic} - {EASY_TOPICS[easy_topic][0]}")
+
+    # 9) Subtopic & application recommendations per completed topic
+    for t in comp:
+        # a) subtopics that need focus (only for low topics)
+        if t in low_topics:
+            subs = [
+                v for _, v, d in G.out_edges(t, data=True)
+                if d.get('relation') == 'subtopic'
+            ]
+            if subs:
+                rec.append(f"🔧 Subtopics to review in {t}: {', '.join(subs[:3])}")
 
         # b) collaborative filtering suggestions
-        collab_recs = [f"👥 Peer | {cr}" for cr in collaborative_filtering_recommendations(sid, df, seg)]
+        collab_recs = collaborative_filtering_recommendations(sid, df, seg)
         rec.extend(collab_recs)
 
         # c) “future” topics (prereqs or odds_ratio)
         future_topics = [
-            v for _, v, d in G.out_edges(easy_topic, data=True)
+            v for _, v, d in G.out_edges(t, data=True)
             if d.get('relation') in ('prereq', 'odds_ratio')
         ]
         if future_topics:
-            rec.append(f"🔄 Apply | {easy_topic} in: {', '.join(future_topics[:2])}")
+            rec.append(f"🔄 Apply {t} in: {', '.join(future_topics[:2])}")
 
         # d) direct applications
         apps = [
-            v for _, v, d in G.out_edges(easy_topic, data=True)
+            v for _, v, d in G.out_edges(t, data=True)
             if d.get('relation') in ('app_preparation', 'application')
         ]
         if apps:
-            rec.append(f"🔬 Real |  {easy_topic}: {', '.join(apps[:2])}")
+            rec.append(f"🔬 Real applications of {t}: {', '.join(apps[:2])}")
     return rec
 
 # ==================================================================
@@ -1222,7 +1075,7 @@ def analyze_item_level_performance(sid):
     problem_questions = []
 
     for q_id, attempts in responses.items():
-        if len(attempts) >= 1:
+        if len(attempts) >= 2:
             success_rate = sum(attempts) / len(attempts)
             if success_rate < 0.5:
                 # Find question details
@@ -1250,10 +1103,6 @@ def analyze_item_level_performance(sid):
     return sorted(problem_questions, key=lambda x: x[3])
 
 
-
-# ==================================================================
-# 8. Streamlit UI
-# ==================================================================
 # ==================================================================
 # 8. Streamlit UI
 # ==================================================================
@@ -1262,67 +1111,24 @@ def main():
         st.session_state.knowledge_graph = nx.DiGraph()
     st.set_page_config(layout="wide", page_title="Learning Dashboard", page_icon="🧠")
 
-    # Modern CSS styling
-    st.markdown("""
-    <style>
-    /* Glassmorphism effects */
-    [data-testid="stExpander"], [data-testid="stVerticalBlock"] > div > div {
-        background: rgba(255, 255, 255, 0.8) !important;
-        backdrop-filter: blur(10px) !important;
-        border-radius: 10px !important;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
-        padding: 1rem !important;
-    }
-
-    /* Gradient headers */
-    .section-header {
-        background: linear-gradient(90deg, #6366f1 0%, #a855f7 100%);
-        color: white !important;
-        padding: 8px 16px;
-        border-radius: 8px;
-        margin-bottom: 1rem;
-    }
-
-    /* Interactive cards */
-    .interactive-card {
-        transition: transform 0.2s;
-        cursor: pointer;
-        border: 1px solid #e5e7eb !important;
-    }
-    .interactive-card:hover {
-        transform: translateY(-2px);
-    }
-
-    /* Modern progress bars */
-    .stProgress > div > div > div {
-        background: linear-gradient(90deg, #10b981 0%, #3b82f6 100%);
-        height: 10px !important;
-        border-radius: 5px;
-    }
-
-    /* Code block styling */
-    .stCodeBlock {
-        background: #0f172a !important;
-        border-radius: 8px;
-        padding: 1rem;
-    }
-
-    /* Metric styling */
-    div[data-testid="metric-container"] {
-        background: rgba(255, 255, 255, 0.9) !important;
-        border: 1px solid #e5e7eb !important;
-        border-radius: 8px;
-        padding: 15px !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+    # Add CSS for better styling
+    st.markdown(
+        """
+        <style>
+        .big-font {font-size:24px !important; font-weight:bold;}
+        .medium-font {font-size:18px !important;}
+        .highlight {background-color:#f0f2f6; padding:10px; border-radius:5px;}
+        .recommendation {margin-bottom:10px; padding:5px;}
+        .graph-container {border:1px solid #ddd; border-radius:5px; padding:10px;}
+        </style>
+        """, unsafe_allow_html=True)
 
     if 'quiz_progress' not in st.session_state:
         st.session_state.quiz_progress = {}
     if 'question_responses' not in st.session_state:
         st.session_state.question_responses = {}
 
-    st.markdown('<div class="section-header">Enhanced Learning Dashboard 🧠</div>', unsafe_allow_html=True)
+    st.markdown('<p class="big-font">Enhanced Learning Dashboard 🧠</p>', unsafe_allow_html=True)
 
     # Initialize critical variables
     sid = None
@@ -1350,7 +1156,7 @@ def main():
                 st.stop()
 
         # Sidebar settings
-        st.sidebar.markdown('<div class="section-header">Settings</div>', unsafe_allow_html=True)
+        st.sidebar.markdown('# Settings', unsafe_allow_html=True)
 
         # Student selection
         all_students = sorted(df.StudentID.unique())
@@ -1385,7 +1191,7 @@ def main():
             unsafe_allow_html=True
         )
 
-        # Motivation override
+        # ── Motivation override ──
         st.sidebar.subheader("Student Mood Tracker")
         motivation_mapping = {
             'Topper': 'High',
@@ -1403,7 +1209,7 @@ def main():
         )
         df.loc[df.StudentID == sid, 'MotivationLevel'] = override_mot
 
-        # Peer Tutoring Section
+        # ── Peer Tutoring Section ──
         with st.expander("🔗 Peer Tutoring Matches", expanded=False):
             st.write("Students who complement your strengths/weaknesses:")
             matches = suggest_peer_tutoring(sid, df, seg)
@@ -1418,8 +1224,8 @@ def main():
 
         # Knowledge Graph Visualization
         with col1:
-            st.markdown('<div class="section-header">Knowledge Graph</div>', unsafe_allow_html=True)
-            with st.container(height=600, border=True):
+            st.markdown('<p class="medium-font">Knowledge Graph</p>', unsafe_allow_html=True)
+            with st.container(height=400, border=True):
                 try:
                     pos = nx.spring_layout(G, seed=42)
                     edge_colors = {
@@ -1464,7 +1270,7 @@ def main():
                         showlegend=False, hovermode='closest', margin=dict(b=20, l=5, r=5, t=40),
                         xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                         yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                        height=550
+                        height=350
                     ))
                     st.plotly_chart(fig, use_container_width=True)
                     st.caption("Topic colors: 🔴 Needs work | 🟡 Average | 🟢 Strong | 🟠 No data")
@@ -1473,209 +1279,100 @@ def main():
 
         # Recommendations Panel
         with col2:
-            st.markdown('<div class="section-header">Personalized Learning Plan</div>', unsafe_allow_html=True)
+            st.markdown('<p class="medium-font">Personalized Learning Recommendations</p>', unsafe_allow_html=True)
             if sid is not None:
                 try:
                     recommendations = get_recommendations(sid, df, G, seg, override_mot)
-
-                    # Categorization dictionary with updated structure
                     rec_types = {
-                        "🚨 Urgent": [],
-                        "🚨 Needs Work": [],
-                        "📚 Practice": [],
-                        "📝 Quiz": [],
-                        "🎥 Media": [],
-                        "🔗 Analogy": [],
-                        "🔄 Apply": [],
-                        "💭 Quote": [],
-                        "🏆 Strong": [],
-                        "🌟 Topper Habit": []
+                        "🚧 Bridge": [], "🧠 HOTS": [], "📚 Practice": [],
+                        "📝 Quiz": [],  "🎥 Media": [],  "🔗 Analogy": [],
+                        "📊 Formula": [], "🔧 Subtopics": [], "🔄 Apply": [],
+                        "👍 Easy Win": [], "💭 Quote": []
                     }
-
-                    # Enhanced categorization logic
                     for r in recommendations:
-                        if r.startswith("🚨 Urgent_course"):
-                            rec_types["🚨 Urgent"].append(r.split("|")[-1])
-                        elif r.startswith("🚨 Needs Work"):
-                            rec_types["🚨 Needs Work"].append(r.split("|")[-1])
-                        elif r.startswith("📚 Practice"):
-                            rec_types["📚 Practice"].append(r.split("|")[-1])
-                        elif r.startswith("📝 Quiz"):
-                            rec_types["📝 Quiz"].append(r.split("|")[-1])
-                        elif r.startswith("🎥 Media"):
-                            rec_types["🎥 Media"].append(r)
-                        elif r.startswith("🔗 Analogy"):
-                            rec_types["🔗 Analogy"].append(r)
-                        elif r.startswith("🔄 Apply"):
-                            rec_types["🔄 Apply"].append(r.split("|")[-1])
-                        elif r.startswith("💭 Quote"):
-                            rec_types["💭 Quote"].append(r)
-                        elif r.startswith("🏆 Strong"):
-                            rec_types["🏆 Strong"].append(r.split("|")[-1])
-                        elif r.startswith("🌟 Topper_habit"):
-                            rec_types["🌟 Topper Habit"].append(r.split("→ ")[-1])
-
-                    # Visual priority matrix
-                    with st.container(border=True):
-                        cols = st.columns([1, 2])
-                        with cols[0]:
-                            st.markdown("#### 🗺️ Knowledge Map")
-                            for topic, color in zip(node_text, node_colors):
-                                st.markdown(f"<span style='color:{color}'>●</span> {topic}",
-                                            unsafe_allow_html=True)
-
-                        with cols[1]:
-                            st.markdown("#### 🎯 Action Zones")
-                            tabs = st.tabs(["Urgent Needs", "Practice Areas", "Strengths"])
-
-                            with tabs[0]:
-                                for item in rec_types["🚨 Urgent"] + rec_types["🚨 Needs Work"]:
-                                    st.error(item, icon="🚨")
-
-                            with tabs[1]:
-                                for item in rec_types["📚 Practice"] + rec_types["📝 Quiz"]:
-                                    st.info(item, icon="📘")
-                                    st.progress(0.5, text="Mastery Progress")
-
-                            with tabs[2]:
-                                for item in rec_types["🏆 Strong"]:
-                                    st.success(item, icon="💪")
-                                    st.button("Challenge Yourself →", key=f"challenge_{item[:10]}")
-
-                    # Engagement Hub
-                    with st.container(border=True):
-                        cols = st.columns(3)
-                        with cols[0]:
-                            st.markdown("#### 🧠 Mindset")
-                            for quote in rec_types["💭 Quote"]:
-                                st.markdown(f"""```diff
-+ {quote.split("|")[-1]}
-```""")
-
-                        with cols[1]:
-                            st.markdown("#### 🎮 Interactive")
-                            for media in rec_types["🎥 Media"]:
-                                st.video(media.split("|")[-1])
-                            for analogy in rec_types["🔗 Analogy"]:
-                                st.info(f"**Real-world Connection**\n{analogy.split('|')[-1]}")
-
-                        with cols[2]:
-                            st.markdown("#### 🛠️ Applications")
-                            for app in rec_types["🔄 Apply"]:
-                                st.success(f"🔧 {app}")
-                            st.button("Explore More →", use_container_width=True)
-
+                        for prefix in rec_types:
+                            if r.startswith(prefix):
+                                rec_types[prefix].append(r)
+                                break
+                    cols = st.columns(3)
+                    with cols[0]:
+                        st.markdown("### Study Plan")
+                        for item in rec_types["🚧 Bridge"] + rec_types["📚 Practice"] + rec_types["📊 Formula"]:
+                            st.info(item)
+                    with cols[1]:
+                        st.markdown("### Challenges")
+                        for item in rec_types["🧠 HOTS"] + rec_types["📝 Quiz"] + rec_types["🔧 Subtopics"]:
+                            st.success(item)
+                    with cols[2]:
+                        st.markdown("### Engagement")
+                        for item in rec_types["💭 Quote"]:
+                            st.markdown(f'<div class="highlight">{item}</div>', unsafe_allow_html=True)
+                        for item in rec_types["🎥 Media"] + rec_types["🔗 Analogy"] + rec_types["🔄 Apply"] + rec_types["👍 Easy Win"]:
+                            st.warning(item)
                 except Exception as e:
                     st.error(f"Recommendation error: {str(e)}")
 
         # Strategic Peer Comparison
-        with st.expander("🔍 Peer Benchmarking", expanded=True):
+        with st.expander("🔍 Strategic Peer Comparison", expanded=True):
             if not df.empty and sid is not None:
                 try:
                     current_data = df[df.StudentID == sid]
                     current_start = current_data.ExamDate.min()
                     comparable_peers = df[
-                        (df.ExamDate > current_start - pd.Timedelta(days=40)) &
-                        (df.ExamDate < current_start + pd.Timedelta(days=40)) &
+                        (df.ExamDate > current_start - pd.Timedelta(days=60)) &
+                        (df.ExamDate < current_start + pd.Timedelta(days=60)) &
                         (df.StudentID != sid)
-                        ].StudentID.unique()
-
+                    ].StudentID.unique()
                     if len(comparable_peers) > 0:
                         peer_perf = df[df.StudentID.isin(comparable_peers)].groupby('StudentID').Correct.mean()
                         current_perf = current_data.Correct.mean()
                         peer_diff = abs(peer_perf - current_perf)
-
                         if not peer_diff.empty:
                             best_peer = peer_diff.idxmax()
                             perf_gap = peer_diff.max()
-
-                            if perf_gap >= 0.2:
-                                # Modern layout
-                                with st.container(border=True):
-                                    cols = st.columns([1, 3])
-                                    with cols[0]:
-                                        st.metric("Your Performance Tier", perf_tier,
-                                                  delta=f"vs {len(comparable_peers)} peers")
+                            if perf_gap >= 0.15:
+                                st.markdown(f"#### 🎯 Comparison with Student {best_peer}")
+                                st.caption(f"Similar start date, {perf_gap:.0%} performance difference")
+                                insights = progression_summary(df, sid, best_peer)
+                                col1, col2 = st.columns([2, 3])
+                                with col1:
+                                    st.markdown("##### 📈 Key Behavioral Differences")
+                                    if len(insights) > 1:
+                                        for insight in insights[1:4]:
+                                            st.markdown(f"<div class='highlight'>{insight}</div>", unsafe_allow_html=True)
+                                    else:
+                                        st.info("No significant behavioral differences found")
+                                with col2:
+                                    st.markdown("##### 🚀 Improvement Plan")
+                                    if len(insights) >= 4:
+                                        top_metric = insights[1].split(':')[0]
+                                        s1_val = int(insights[1].split(' ')[-3])
+                                        s2_val = int(insights[1].split(' ')[-6])
+                                        fig = go.Figure()
+                                        fig.add_trace(go.Bar(
+                                            x=['You', f'Student {best_peer}'],
+                                            y=[s1_val, s2_val],
+                                            text=[s1_val, s2_val],
+                                            textposition='auto'
+                                        ))
+                                        fig.update_layout(title=f"{top_metric} Comparison", height=300)
                                         st.plotly_chart(fig, use_container_width=True)
-
-                                    with cols[1]:
-                                        st.markdown("#### 📊 Activity Comparison")
-                                        tabs = st.tabs(["Study Patterns", "Progress Timeline", "Efficiency Matrix"])
-
-                                        with tabs[0]:
-                                            # Radar chart for activity comparison
-                                            s1_vid = current_data.VideosWatched.mean()
-                                            s1_quiz = current_data.QuizzesTaken.mean()
-                                            s1_prac = current_data.PracticeSessions.mean()
-                                            s2_vid = df[df.StudentID == best_peer].VideosWatched.mean()
-                                            s2_quiz = df[df.StudentID == best_peer].QuizzesTaken.mean()
-                                            s2_prac = df[df.StudentID == best_peer].PracticeSessions.mean()
-
-                                            fig = go.Figure()
-                                            fig.add_trace(go.Scatterpolar(
-                                                r=[s1_vid, s1_quiz, s1_prac],
-                                                theta=['Videos', 'Quizzes', 'Practice'],
-                                                fill='toself',
-                                                name='You'
-                                            ))
-                                            fig.add_trace(go.Scatterpolar(
-                                                r=[s2_vid, s2_quiz, s2_prac],
-                                                theta=['Videos', 'Quizzes', 'Practice'],
-                                                fill='toself',
-                                                name=f'Peer {best_peer}'
-                                            ))
-                                            st.plotly_chart(fig, use_container_width=True)
-
-                                        with tabs[1]:
-                                            # Timeline visualization
-                                            timeline_data = pd.DataFrame({
-                                                'Date': pd.date_range(start=current_start - pd.Timedelta(days=30),
-                                                                      periods=60),
-                                                'Your Progress': np.random.rand(60).cumsum(),
-                                                'Peer Progress': np.random.rand(60).cumsum() * 1.2
-                                            }).set_index('Date')
-                                            st.area_chart(timeline_data)
-
-                                        with tabs[2]:
-                                            # Heatmap of activity vs performance
-                                            efficiency_matrix = """
-                                            | Activity   | Efficiency | Impact |
-                                            |------------|------------|--------|
-                                            | Videos     | 65%        | ★★★☆☆ |
-                                            | Quizzes    | 82%        | ★★★★☆ |
-                                            | Practice   | 94%        | ★★★★★ |
-                                            """
-                                            st.write("```\n" + efficiency_matrix + "\n```")
-
-                                # Strategy cards
-                                with st.container():
-                                    cols = st.columns(3)
-                                    with cols[0]:
-                                        with st.container(border=True, height=200):
-                                            st.markdown("#### 🏆 Top Performer Insight")
-                                            st.caption("What successful peers do differently")
-                                            top_strat = rec_types["🌟 Topper Habit"][0] if rec_types["🌟 Topper Habit"] else "N/A"
-                                            st.write(f"```\n{top_strat}\n```")
-
-                                    with cols[1]:
-                                        with st.container(border=True, height=200):
-                                            st.markdown("#### ⚡ Quick Wins")
-                                            quick_win_score = min(int(perf_gap * 100) / 100, 0.75)
-                                            st.progress(quick_win_score, "Immediate impact potential")
-                                            st.button("Implement Now →")
-
-                                    with cols[2]:
-                                        with st.container(border=True, height=200):
-                                            st.markdown("#### 📅 Weekly Plan")
-                                            st.write("1. 2h Focus Sessions\n2. Peer Reviews\n3. Skill Drills")
-                                            weekly_plan = "Sample plan content"
-                                            st.download_button("Export Plan", data=weekly_plan)
-
+                                        st.markdown(f"<div class='highlight'>{insights[-1]}</div>", unsafe_allow_html=True)
+                                    else:
+                                        st.warning("Insufficient data for detailed comparison")
+                            else:
+                                st.info("No peers found with >=15% performance gap")
+                        else:
+                            st.warning("Could not calculate peer differences")
+                    else:
+                        st.warning("⚠️ No comparable peers found with similar start dates")
                 except Exception as e:
                     st.error(f"Comparison failed: {str(e)}")
+            else:
+                st.warning("Select a student to enable peer comparison")
 
         # Quiz Section
-        st.markdown('<div class="section-header">Interactive Quiz Section</div>', unsafe_allow_html=True)
+        st.markdown('<p class="medium-font">Interactive Quiz Section</p>', unsafe_allow_html=True)
         try:
             comp = df[(df.StudentID == sid) & (df.Completed)].Topic.unique().tolist()
             quiz_topics = [t for t in comp if t in FORMULA_QUIZ_BANK]
@@ -1691,31 +1388,16 @@ def main():
                         st.session_state.quiz_answers = {}
 
                         # Pre-initialize all question keys
-                        if selected_topic in FORMULA_QUIZ_BANK:
-                            topic_data = FORMULA_QUIZ_BANK[selected_topic]
-                            for sub, questions in topic_data.items():
-                                for q in questions:
-                                    q_key = f"q_{selected_topic}_{q['id']}"
-                                    if q_key not in st.session_state:
-                                        st.session_state[q_key] = ""
-                        else:
-                            st.error("Invalid quiz topic selected")
-                            st.session_state.show_quiz = False
+                        topic_data = FORMULA_QUIZ_BANK[selected_topic]
+                        for sub, questions in topic_data.items():
+                            for q in questions:
+                                q_key = f"q_{selected_topic}_{q['id']}"
+                                if q_key not in st.session_state:
+                                    st.session_state[q_key] = ""
 
                 with c2:
                     if st.session_state.get('show_quiz'):
                         topic = st.session_state.quiz_topic
-
-                        # Validate topic exists in quiz bank
-                        if topic not in FORMULA_QUIZ_BANK:
-                            st.error("Invalid quiz topic selected")
-                            return
-
-                        # Validate questions exist for topic
-                        if not FORMULA_QUIZ_BANK[topic]:
-                            st.error("No questions available for this topic")
-                            return
-
                         st.markdown(f"### {topic} Quiz")
 
                         with st.form(key=f"quiz_form_{topic}"):
@@ -1739,71 +1421,33 @@ def main():
 
                             if st.form_submit_button("Submit Quiz"):
                                 try:
-                                    # Initialize response structures
-                                    if 'quiz_responses' not in st.session_state:
-                                        st.session_state.quiz_responses = {}
-                                    if 'question_responses' not in st.session_state:
-                                        st.session_state.question_responses = {}
+                                    # Initialize responses structure
+                                    st.session_state.setdefault('quiz_responses', {}).setdefault(sid, {})
+                                    st.session_state.setdefault('question_responses', {}).setdefault(sid, {})
 
-                                    # Initialize student-specific structures
-                                    if sid not in st.session_state.quiz_responses:
-                                        st.session_state.quiz_responses[sid] = {}
-                                    if sid not in st.session_state.question_responses:
-                                        st.session_state.question_responses[sid] = {}
-
-                                    # Generate responses from form data
-                                    responses = []
+                                    # Process all questions
                                     for sub, questions in FORMULA_QUIZ_BANK[topic].items():
                                         for q in questions:
                                             q_key = f"q_{topic}_{q['id']}"
-                                            student_answer = st.session_state.get(q_key, "")
-                                            responses.append({
-                                                "qid": q['id'],
-                                                "answer": student_answer
-                                            })
-
-                                    # Process all responses
-                                    for response in responses:
-                                        try:
-                                            # Find question safely
-                                            question = None
-                                            for t in QUESTION_BANK:
-                                                for q in QUESTION_BANK[t]:
-                                                    if q['id'] == response['qid']:
-                                                        question = q
-                                                        break
-                                                if question:
-                                                    break
-
-                                            if not question:
-                                                st.error(f"Missing question: {response['qid']}")
-                                                continue
+                                            student_answer = st.session_state[q_key]
 
                                             # Validate answer
-                                            is_correct, feedback = validate_answer(question, response['answer'])
+                                            is_correct, feedback = validate_answer(q, student_answer)
 
                                             # Track response
-                                            track_question_response(sid, question['id'], is_correct)
+                                            track_question_response(sid, q['id'], is_correct)
 
                                             # Store detailed response
-                                            if topic not in st.session_state.quiz_responses[sid]:
-                                                st.session_state.quiz_responses[sid][topic] = []
-
-                                            st.session_state.quiz_responses[sid][topic].append({
-                                                "qid": question['id'],
-                                                "answer": response['answer'],
+                                            st.session_state.quiz_responses[sid].setdefault(topic, []).append({
+                                                "qid": q['id'],
+                                                "answer": student_answer,
                                                 "is_correct": is_correct,
                                                 "timestamp": datetime.now().isoformat(),
                                                 "feedback": feedback
                                             })
 
-                                        except Exception as e:
-                                            st.error(f"Error processing response: {str(e)}")
-                                            continue
-
                                     # Update knowledge graph
-                                    update_knowledge_graph_with_quiz(st.session_state.knowledge_graph, sid,
-                                                                     topic)
+                                    update_knowledge_graph_with_quiz(st.session_state.knowledge_graph, sid, topic)
 
                                     # Clear temporary input states
                                     for sub, questions in FORMULA_QUIZ_BANK[topic].items():
@@ -1820,9 +1464,8 @@ def main():
 
         except Exception as e:
             st.error(f"Quiz section error: {str(e)}")
-
         # Performance Analytics
-        st.markdown('<div class="section-header">Performance Analytics</div>', unsafe_allow_html=True)
+        st.markdown('<p class="medium-font">Performance Analytics</p>', unsafe_allow_html=True)
         try:
             if sid is not None:
                 student_data = df[df.StudentID == sid]
@@ -1869,59 +1512,36 @@ def main():
 
                     with tab3:
                         usage_data = student_data.groupby('Topic').agg({
-                            'VideosWatched': 'sum',
-                            'QuizzesTaken': 'sum',
-                            'PracticeSessions': 'sum',
-                            'MediaClicks': 'sum'
+                            'VideosWatched': 'sum', 'QuizzesTaken': 'sum',
+                            'PracticeSessions': 'sum', 'MediaClicks': 'sum'
                         }).reset_index()
 
                         if not usage_data.empty:
                             fig = go.Figure()
-                            fig.add_trace(go.Bar(
-                                x=usage_data['Topic'],
-                                y=usage_data['VideosWatched'],
-                                name='Videos',
-                                marker=dict(color='#2196F3')
-                            ))
-                            fig.add_trace(go.Bar(
-                                x=usage_data['Topic'],
-                                y=usage_data['QuizzesTaken'],
-                                name='Quizzes',
-                                marker=dict(color='#4CAF50')
-                            ))
-                            fig.add_trace(go.Bar(
-                                x=usage_data['Topic'],
-                                y=usage_data['PracticeSessions'],
-                                name='Practice',
-                                marker=dict(color='#FF9800')
-                            ))
-                            fig.add_trace(go.Bar(
-                                x=usage_data['Topic'],
-                                y=usage_data['MediaClicks'],
-                                name='Media',
-                                marker=dict(color='#9C27B0')
-                            ))
+                            # Map the correct column names to their display names
+                            columns_map = {
+                                'VideosWatched': 'Videos',
+                                'QuizzesTaken': 'Quizzes',
+                                'PracticeSessions': 'Practice',
+                                'MediaClicks': 'Media'
+                            }
+                            colors = {'Videos': '#1f77b4', 'Quizzes': '#ff7f0e',
+                                      'Practice': '#2ca02c', 'Media': '#d62728'}
 
-                            fig.update_layout(
-                                barmode='stack',
-                                title='Study Activity Distribution',
-                                xaxis_title='Topics',
-                                yaxis_title='Total Activities',
-                                height=400,
-                                legend=dict(
-                                    orientation="h",
-                                    yanchor="bottom",
-                                    y=1.02,
-                                    xanchor="right",
-                                    x=1
-                                )
-                            )
+                            for db_col, display_name in columns_map.items():
+                                fig.add_trace(go.Bar(
+                                    x=usage_data['Topic'],
+                                    y=usage_data[db_col],
+                                    name=display_name,
+                                    marker_color=colors[display_name]
+                                ))
+                            fig.update_layout(barmode='stack', height=400)
                             st.plotly_chart(fig, use_container_width=True)
         except Exception as e:
             st.error(f"Analytics error: {str(e)}")
 
         # Question-Level Analytics
-        st.markdown('<div class="section-header">Question-Level Analytics</div>', unsafe_allow_html=True)
+        st.markdown('<p class="medium-font">Question-Level Analytics</p>', unsafe_allow_html=True)
         try:
             if sid is not None:
                 problem_questions = analyze_item_level_performance(sid)
@@ -1952,7 +1572,6 @@ def main():
     except Exception as e:
         st.error(f"Critical application error: {str(e)}")
         st.stop()
-
-
 if __name__ == "__main__":
     main()
+
