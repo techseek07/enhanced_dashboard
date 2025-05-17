@@ -13,24 +13,16 @@ import shap
 from itertools import combinations
 from collections import Counter
 from datetime import datetime, timedelta
+import random
 # ==================================================================
 # 0. Configuration & Mock Data
 # ==================================================================
-PEER_TUTORS = {
-    "Algebra":   ["S101","S102","S105"],
-    "Geometry":  ["S103","S104","S106"],
-    "Calculus":  ["S107","S108","S109"],
-    "Chemistry": ["S110","S111","S112"],
-    "Biology":   ["S113","S114","S115"],
-    "Derivatives":["S116","S117"],
-    "Kinematics":["S118","S119"],
-    "Gas Laws":  ["S120","S121"],
-}
+
 PREREQUISITES = {
     'Geometry':      ['Algebra'],
     'Calculus':      ['Algebra','Geometry'],
     'Derivatives':   ['Calculus'],           # derivative builds on calculus
-    'Chemistry':     ['Algebra'],
+    'Chemistry':     ['reactions'],
     'Gas Laws':      ['Chemistry'],
     'Biology':       ['Chemistry'],
     'Kinematics':    ['Algebra'],
@@ -44,6 +36,7 @@ TOPICS = [
     'Gas Laws',
     'Biology',
     'Kinematics',
+    'reactions',
 ]
 
 SUBTOPICS = {
@@ -55,6 +48,7 @@ SUBTOPICS = {
     'Gas Laws':   ['Boyle','Charles','Ideal Gas'],
     'Biology':    ['Cells','Genetics','Ecology'],
     'Kinematics': ['Velocity','Acceleration','Projectile Motion'],
+    'reactions': ['synthesis', 'decomposition', 'combustion', 'acid-base'],
 }
 
 # Application-level edges
@@ -212,7 +206,11 @@ EASY_TOPICS = {
     'Geometry': ['Sacred Geometry in Art', 'Geometry in Nature', 'Optical Illusions Explained'],
     'Calculus': ['Calculus in Sports', 'Real-world Optimization', 'Visual Calculus Games'],
     'Chemistry': ['Kitchen Chemistry Demos', 'Chemistry Magic Tricks', 'Everyday Reactions'],
-    'Biology': ['Amazing Animal Adaptations', 'Biology Mysteries', 'Human Body Curiosities']
+    'Biology': ['Amazing Animal Adaptations', 'Biology Mysteries', 'Human Body Curiosities'],
+'Derivatives': ['Visualizing Derivatives with Sliders', 'Derivatives in Economics', 'Tangent Line Explorer'],
+    'Gas Laws': ['Balloon Experiments at Home', 'Weather and Gas Laws', 'Pressure-Volume Demonstrations'],
+    'Kinematics': ['Physics of Sports', 'Simple Pendulum Apps', 'Motion Graph Interpretation Games'],
+    'reactions': ['Color-Changing Reactions Explained', 'Safe Home Reaction Demos', 'Reaction Prediction Games']
 }
 
 # Formula revision materials
@@ -364,49 +362,7 @@ def generate_student_data(num_students=500):
     return pd.DataFrame(rows)
 
 
-def validate_answer(question, student_answer):
-    """
-    Validate a student's answer against the expected answer.
 
-    Args:
-        question: Question dictionary with 'answer' key
-        student_answer: The student's submitted answer
-
-    Returns:
-        tuple: (is_correct, feedback)
-    """
-    try:
-        if question['type'] == 'formula':
-            # For formula questions, normalize and compare
-            expected_answer = str(question.get('answer', '')).strip().lower()
-            student_answer = str(student_answer).strip().lower()
-
-            # Basic normalization for formula comparison
-            expected_normalized = expected_answer.replace(" ", "").replace("*", "")
-            student_normalized = student_answer.replace(" ", "").replace("*", "")
-
-            is_correct = (expected_normalized == student_normalized)
-
-            if is_correct:
-                feedback = "Correct! Good job."
-            else:
-                feedback = f"Incorrect. The correct answer is: {question.get('answer', 'Unknown')}"
-
-        else:  # Multiple choice
-            # For multiple choice, direct comparison
-            correct_option = question.get('answer', '')
-            is_correct = (student_answer == correct_option)
-
-            if is_correct:
-                feedback = "Correct! Good job."
-            else:
-                feedback = f"Incorrect. The correct answer is: {correct_option}"
-
-        return is_correct, feedback
-
-    except Exception as e:
-        st.error(f"Error validating answer: {str(e)}")
-        return False, f"Error validating answer: {str(e)}"
 
 
 # ==================================================================
@@ -995,13 +951,6 @@ def process_quiz_submission(sid, topic):
 def validate_answer(question, student_answer):
     """
     Validate a student's answer against the expected answer.
-
-    Args:
-        question: Question dictionary with 'answer' key
-        student_answer: The student's submitted answer
-
-    Returns:
-        tuple: (is_correct, feedback)
     """
     try:
         if question['type'] == 'formula':
@@ -1009,9 +958,23 @@ def validate_answer(question, student_answer):
             expected_answer = str(question.get('answer', '')).strip().lower()
             student_answer = str(student_answer).strip().lower()
 
-            # Basic normalization for formula comparison
+            # Enhanced normalization for formula comparison
+            # 1. Remove spaces and asterisks
             expected_normalized = expected_answer.replace(" ", "").replace("*", "")
             student_normalized = student_answer.replace(" ", "").replace("*", "")
+
+            # 2. Normalize exponents: replace ^2, ^3, etc. with ², ³, etc.
+            exponent_map = {'^2': '²', '^3': '³', '^4': '⁴', '^5': '⁵', '^6': '⁶'}
+            for exp, sup in exponent_map.items():
+                student_normalized = student_normalized.replace(exp, sup)
+
+            # Debug info
+            st.session_state['debug_info'] = {
+                'original_expected': expected_answer,
+                'original_student': student_answer,
+                'normalized_expected': expected_normalized,
+                'normalized_student': student_normalized
+            }
 
             is_correct = (expected_normalized == student_normalized)
 
@@ -1036,15 +999,12 @@ def validate_answer(question, student_answer):
         st.error(f"Error validating answer: {str(e)}")
         return False, f"Error validating answer: {str(e)}"
 
-
+# ==================================================================
+# 4. question tracking
+# ==================================================================
 def track_question_response(sid, question_id, is_correct):
     """
-    Track student responses to questions for analytics.
-
-    Args:
-        sid: Student ID
-        question_id: Question identifier
-        is_correct: Whether the answer was correct
+    Track student responses to questions for analytics without double updates.
     """
     try:
         if 'question_responses' not in st.session_state:
@@ -1054,18 +1014,110 @@ def track_question_response(sid, question_id, is_correct):
             st.session_state.question_responses[sid] = {}
 
         if question_id not in st.session_state.question_responses[sid]:
-            st.session_state.question_responses[sid][question_id] = {
-                'attempts': 0,
-                'correct': 0
-            }
+            st.session_state.question_responses[sid] = {}
 
         # Update question response tracking
-        st.session_state.question_responses[sid][question_id]['attempts'] += 1
-        if is_correct:
-            st.session_state.question_responses[sid][question_id]['correct'] += 1
+        st.session_state.question_responses[sid][question_id] = st.session_state.question_responses[sid].get(
+            question_id, [])
+        st.session_state.question_responses[sid][question_id].append(int(is_correct))
+
+        # REMOVED: Graph update section that caused double updates
 
     except Exception as e:
         st.error(f"Error tracking question response: {str(e)}")
+# ==================================================================
+#  get_enhanced_subtopic_recommendations
+# ==================================================================
+
+def get_enhanced_subtopic_recommendations(G, sid, QUESTION_BANK):
+    """
+    Generate enhanced data-driven subtopic recommendations by analyzing
+    the knowledge graph and student performance data.
+
+    Args:
+        G: NetworkX knowledge graph
+        sid: Student ID
+        QUESTION_BANK: Dictionary of questions organized by topic
+
+    Returns:
+        list: Prioritized subtopic recommendations
+    """
+    recommendations = []
+
+    # Enhanced data-driven subtopic recommendations
+    for t in G.nodes():
+        # Skip non-topic nodes
+        if G.nodes[t].get('type') != 'topic':
+            continue
+
+        # Initialize containers for weighted subtopics
+        sub_weights = {}
+
+        # 1. Get direct subtopics from graph with weights
+        direct_subs = [(v, d.get('weight', 1.0))
+                       for _, v, d in G.out_edges(t, data=True)
+                       if d.get('relation') == 'subtopic']
+
+        for sub, weight in direct_subs:
+            sub_weights[sub] = weight
+
+        # 2. Incorporate question-level performance data
+        if sid in st.session_state.question_responses:
+            for qid, attempts in st.session_state.question_responses[sid].items():
+                # Find question details and associated subtopics
+                for topic, questions in QUESTION_BANK.items():
+                    for q in questions:
+                        if q['id'] == qid:
+                            # Check if question is related to current topic
+                            if topic == t:
+                                # Calculate performance on this question
+                                success_rate = sum(attempts) / len(attempts) if attempts else 0
+
+                                # If student struggles with this question
+                                if success_rate < 0.5:
+                                    # Extract subtopics from question if available
+                                    for i in range(1, 4):
+                                        subtopic = q.get(f'subtopic{i}')
+                                        if subtopic and subtopic in sub_weights:
+                                            # Boost weight for struggled subtopics
+                                            sub_weights[subtopic] += (1.0 - success_rate) * 2
+
+        # 3. Apply centrality measures from the knowledge graph
+        # Calculate betweenness centrality (how important nodes are as bridges)
+        try:
+            centrality = nx.betweenness_centrality(G, k=min(10, len(G.nodes)))
+            for sub in sub_weights:
+                if sub in centrality:
+                    # Boost weight based on centrality (importance in graph)
+                    sub_weights[sub] += centrality[sub] * 5
+        except Exception as e:
+            st.error(f"Centrality calculation failed: {str(e)}")
+            pass  # Skip if centrality calculation fails
+
+        # 4. Sort and recommend subtopics based on final weights
+        weighted_subs = sorted(sub_weights.items(), key=lambda x: x[1], reverse=True)
+
+        if weighted_subs:
+            # Format subtopic recommendations with weights
+            formatted_subs = []
+            for sub, weight in weighted_subs[:3]:
+                # Higher weights get more emphasis
+                emphasis = "🔥" if weight > 3 else "📌" if weight > 2 else ""
+                formatted_subs.append(f"{sub} {emphasis}")
+
+            recommendations.append(f"🔧 Priority subtopics in {t}: {', '.join(formatted_subs)}")
+
+            # 5. Add extra insight for highest weighted subtopic
+            if weighted_subs and weighted_subs[0][1] > 2:
+                top_sub = weighted_subs[0][0]
+                # Find connected concepts to this subtopic
+                related = [v for _, v, d in G.out_edges(top_sub, data=True)]
+                if related:
+                    recommendations.append(f"🔍 Master '{top_sub}' to unlock: {', '.join(related[:2])}")
+
+    return recommendations
+
+
 # ==================================================================
 # 4. Collaborative Filtering & Peer Tutoring
 # ==================================================================
@@ -1262,7 +1314,7 @@ def get_recommendations(sid, df, G, seg, mot='High'):
         high_topics = acc[acc > 0.7].index.tolist()
         for t in high_topics[:2]:
             if t in HOTS_QUESTIONS:
-                rec.append(f"🧠 HOTS {t}: {', '.join(HOTS_QUESTIONS[t][:2])}")
+                rec.append(f"🧠 HOTS {t} (Strong topic): {', '.join(HOTS_QUESTIONS[t][:2])}")
 
     # 4) Practice recommendations using knowledge graph relationships instead of just completed topics
     practice_candidates = []
@@ -1325,77 +1377,54 @@ def get_recommendations(sid, df, G, seg, mot='High'):
         if t in FORMULA_REVISION:
             rec.append(f"📊 Formula Help {t}: {', '.join(FORMULA_REVISION[t][:2])}")
 
-    # 8) Easy‐win topics if motivation is Low
-    if mot == 'Low' and comp:
-        easy_topic = np.random.choice(comp)
-        if easy_topic in EASY_TOPICS:
-            rec.append(f"👍 Easy Win: {easy_topic} - {EASY_TOPICS[easy_topic][0]}")
+            # 8) Enhanced Easy‐win topics if motivation is Low
+            if mot == 'Low':
+                # Create a dictionary to store topics with their strength scores
+                topic_strengths = {}
 
-        # Enhanced data-driven subtopic recommendations
-        if t in G.nodes():
-            # Initialize containers for weighted subtopics
-            sub_weights = {}
+                # First, add completed topics with a base score
+                for t in comp:
+                    topic_strengths[t] = 1.0  # Base score for completed topics
 
-            # 1. Get direct subtopics from graph with weights
-            direct_subs = [(v, d.get('weight', 1.0))
-                           for _, v, d in G.out_edges(t, data=True)
-                           if d.get('relation') == 'subtopic']
+                # Then, enhance scores with knowledge graph data
+                for node in G.nodes():
+                    # Check if it's a topic node and in our list
+                    if G.nodes[node].get('type') == 'topic' and node in topic_strengths:
+                        # Get the mastery percentage if available in graph
+                        mastery = G.nodes[node].get('mastery_pct', 0)
+                        topic_strengths[node] += mastery / 100.0  # Add 0-1 based on mastery
 
-            for sub, weight in direct_subs:
-                sub_weights[sub] = weight
+                        # Check for strong edges coming into this topic (indicates student strength)
+                        strong_connections = 0
+                        for _, _, data in G.in_edges(node, data=True):
+                            if data.get('weight', 0) > 3.0:  # Strong connection threshold
+                                strong_connections += 1
 
-            # 2. Incorporate question-level performance data
-            if sid in st.session_state.question_responses:
-                for qid, attempts in st.session_state.question_responses[sid].items():
-                    # Find question details and associated subtopics
-                    for topic, questions in QUESTION_BANK.items():
-                        for q in questions:
-                            if q['id'] == qid:
-                                # Check if question is related to current topic
-                                if topic == t:
-                                    # Calculate performance on this question
-                                    success_rate = sum(attempts) / len(attempts) if attempts else 0
+                        topic_strengths[node] += min(strong_connections * 0.2, 1.0)  # Add up to 1.0 for connections
 
-                                    # If student struggles with this question
-                                    if success_rate < 0.5:
-                                        # Extract subtopics from question if available
-                                        for i in range(1, 4):
-                                            subtopic = q.get(f'subtopic{i}')
-                                            if subtopic and subtopic in sub_weights:
-                                                # Boost weight for struggled subtopics
-                                                sub_weights[subtopic] += (1.0 - success_rate) * 2
+                # Sort topics by strength score
+                strong_topics = sorted(topic_strengths.items(), key=lambda x: x[1], reverse=True)
 
-            # 3. Apply centrality measures from the knowledge graph
-            # Calculate betweenness centrality (how important nodes are as bridges)
-            try:
-                centrality = nx.betweenness_centrality(G, k=min(10, len(G.nodes)))
-                for sub in sub_weights:
-                    if sub in centrality:
-                        # Boost weight based on centrality (importance in graph)
-                        sub_weights[sub] += centrality[sub] * 5
-            except:
-                pass  # Skip if centrality calculation fails
+                # Choose from top 3 strong topics (with some randomness)
+                if strong_topics:
+                    top_topics = strong_topics[:min(3, len(strong_topics))]
+                    chosen_topic, strength = random.choice(top_topics)
 
-            # 4. Sort and recommend subtopics based on final weights
-            weighted_subs = sorted(sub_weights.items(), key=lambda x: x[1], reverse=True)
+                    # Format the recommendation based on topic strength
+                    confidence_indicator = "💪" if strength > 2.0 else "✓"
 
-            if weighted_subs:
-                # Format subtopic recommendations with weights
-                formatted_subs = []
-                for sub, weight in weighted_subs[:3]:
-                    # Higher weights get more emphasis
-                    emphasis = "🔥" if weight > 3 else "📌" if weight > 2 else ""
-                    formatted_subs.append(f"{sub} {emphasis}")
+                    # Combine with EASY_TOPICS if available
+                    if chosen_topic in EASY_TOPICS:
+                        easy_content = EASY_TOPICS[chosen_topic][0]
+                        rec.append(f"👍 Easy Win: {chosen_topic} {confidence_indicator} - {easy_content}")
+                    else:
+                        # Create a generic easy win suggestion
+                        rec.append(
+                            f"👍 Easy Win: Review {chosen_topic} {confidence_indicator} - You've shown strong understanding here!")
 
-                rec.append(f"🔧 Priority subtopics in {t}: {', '.join(formatted_subs)}")
-
-                # 5. Add extra insight for highest weighted subtopic
-                if weighted_subs and weighted_subs[0][1] > 2:
-                    top_sub = weighted_subs[0][0]
-                    # Find connected concepts to this subtopic
-                    related = [v for _, v, d in G.out_edges(top_sub, data=True)]
-                    if related:
-                        rec.append(f"🔍 Master '{top_sub}' to unlock: {', '.join(related[:2])}")
+            # Add the enhanced subtopic recommendations
+            subtopic_recs = get_enhanced_subtopic_recommendations(G, sid, QUESTION_BANK)
+            rec.extend(subtopic_recs)
 
         # b) collaborative filtering suggestions
         collab_recs = collaborative_filtering_recommendations(sid, df, seg)
@@ -1407,7 +1436,7 @@ def get_recommendations(sid, df, G, seg, mot='High'):
             if d.get('relation') in ('prereq', 'odds_ratio')
         ]
         if future_topics:
-            rec.append(f"🔄 Apply {t} in: {', '.join(future_topics[:2])}")
+            rec.append(f"🔄 Apply {t} in: {', '.join(future_topics[:2])} - Connects concepts across contexts")
 
         # d) direct applications
         apps = [
@@ -1415,28 +1444,10 @@ def get_recommendations(sid, df, G, seg, mot='High'):
             if d.get('relation') in ('app_preparation', 'application')
         ]
         if apps:
-            rec.append(f"🔬 Real applications of {t}: {', '.join(apps[:2])}")
+            rec.append(f"🔬 Real applications of {t}: {', '.join(apps[:2])} - Why this matters")
     return rec
 
-# ==================================================================
-# 7. Question‑Level Analytics
-# ==================================================================
-def track_question_response(sid, question_id, is_correct):
-    """Enhanced tracking with graph updates"""
-    if 'question_responses' not in st.session_state:
-        st.session_state.question_responses = {}
 
-    # Record response
-    student_responses = st.session_state.question_responses.setdefault(sid, {})
-    question_history = student_responses.setdefault(question_id, [])
-    question_history.append(int(is_correct))
-
-    # Update knowledge graph
-    G = st.session_state.knowledge_graph
-    for topic in QUESTION_BANK:
-        if any(q['id'] == question_id for q in QUESTION_BANK[topic]):
-            update_knowledge_graph_with_quiz(G, sid, topic)
-            break
 
 
 def analyze_item_level_performance(sid):
@@ -1661,7 +1672,8 @@ def main():
                         "🚧 Bridge": [], "🧠 HOTS": [], "📚 Practice": [],
                         "📝 Quiz": [],  "🎥 Media": [],  "🔗 Analogy": [],
                         "📊 Formula": [], "🔧 Subtopics": [], "🔄 Apply": [],
-                        "👍 Easy Win": [], "💭 Quote": []
+                        "👍 Easy Win": [], "💭 Quote": [],"🌟 Top": [],
+    "🔬 Real": []
                     }
                     for r in recommendations:
                         for prefix in rec_types:
@@ -1673,10 +1685,15 @@ def main():
                         st.markdown("### Study Plan")
                         for item in rec_types["🚧 Bridge"] + rec_types["📚 Practice"] + rec_types["📊 Formula"]:
                             st.info(item)
+                        for item in rec_types["🌟 Top"]:
+                            st.success(item) ###
+
                     with cols[1]:
                         st.markdown("### Challenges")
                         for item in rec_types["🧠 HOTS"] + rec_types["📝 Quiz"] + rec_types["🔧 Subtopics"]:
                             st.success(item)
+                        for item in rec_types["🔬 Real"]:
+                            st.success(item) ###
                     with cols[2]:
                         st.markdown("### Engagement")
                         for item in rec_types["💭 Quote"]:
