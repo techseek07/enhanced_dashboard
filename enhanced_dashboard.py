@@ -1,7 +1,6 @@
 
 # enhanced_dashboard_complete.py
-import re
-import math
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -156,29 +155,35 @@ PRACTICE_QUESTIONS = {
     'Algebra': {
         'recent': ['Factoring Polynomials', 'Solving Quadratics'],
         'historical': ['Linear Equations', 'Basic Operations'],
-        'fundamental': ['Number Sense', 'Order of Operations']
+        'fundamental': ['Number Sense', 'Order of Operations'],
+        'mid_level': ['Rational Expressions', 'Systems of Equations']
     },
     'Geometry': {
         'recent': ['Triangle Congruence', 'Circle Theorems'],
         'historical': ['Angle Relationships', 'Pythagorean Theorem'],
-        'fundamental': ['Basic Shapes', 'Area Formulas']
+        'fundamental': ['Basic Shapes', 'Area Formulas'],
+        'mid_level': ['Coordinate Geometry', 'Mensuration (2D)']
     },
     'Calculus': {
         'recent': ['Derivative Rules', 'Integration Techniques'],
         'historical': ['Limits', 'Continuity'],
-        'fundamental': ['Function Behavior', 'Graphing']
+        'fundamental': ['Function Behavior', 'Graphing'],
+        'mid_level': ['Applications of Derivatives', 'Basic Integration']
     },
     'Chemistry': {
-        'recent': ['Balancing Equations', 'Stoichiometry'],
+        'recent': ['Chemical Kinetics', 'Chemical Equilibrium'],
         'historical': ['Periodic Table', 'Chemical Bonds'],
-        'fundamental': ['States of Matter', 'Element Properties']
+        'fundamental': ['States of Matter', 'Element Properties'],
+        'mid_level': ['Solutions', 'Electrochemistry']
     },
     'Biology': {
-        'recent': ['Cell Division', 'Heredity'],
+        'recent': ['Molecular Biology', 'Biotechnology'],
         'historical': ['Cell Structure', 'Classification'],
-        'fundamental': ['Life Processes', 'Scientific Method']
+        'fundamental': ['Life Processes', 'Scientific Method'],
+        'mid_level': ['Genetics', 'Ecology and Environment']
     }
 }
+
 
 MEDIA_LINKS = {
     'Algebra': {
@@ -360,88 +365,48 @@ def generate_student_data(num_students=500):
 
 
 def validate_answer(question, student_answer):
-    """Enhanced validation with normalization and flexible matching"""
+    """
+    Validate a student's answer against the expected answer.
+
+    Args:
+        question: Question dictionary with 'answer' key
+        student_answer: The student's submitted answer
+
+    Returns:
+        tuple: (is_correct, feedback)
+    """
     try:
-        # Normalization function for answer comparison
-        def normalize_answer(answer):
-            """Process answer for consistent comparison"""
-            if not isinstance(answer, str):
-                answer = str(answer)
+        if question['type'] == 'formula':
+            # For formula questions, normalize and compare
+            expected_answer = str(question.get('answer', '')).strip().lower()
+            student_answer = str(student_answer).strip().lower()
 
-            # Standard normalization steps
-            normalized = answer.lower().strip()
-            normalized = re.sub(r'\s+', ' ', normalized)  # Collapse whitespace
-            normalized = re.sub(r'[;,]\s*', ',', normalized)  # Standardize separators
-            normalized = re.sub(r'[^a-z0-9.,=+-]', '', normalized)  # Remove special chars
+            # Basic normalization for formula comparison
+            expected_normalized = expected_answer.replace(" ", "").replace("*", "")
+            student_normalized = student_answer.replace(" ", "").replace("*", "")
 
-            # Handle mathematical equivalences
-            normalized = normalized.replace('^', '')  # x² vs x2
-            normalized = normalized.replace('\\frac', '/')  # LaTeX fractions
-            normalized = re.sub(r'\.0+$', '', normalized)  # 2.0 → 2
+            is_correct = (expected_normalized == student_normalized)
 
-            return normalized
+            if is_correct:
+                feedback = "Correct! Good job."
+            else:
+                feedback = f"Incorrect. The correct answer is: {question.get('answer', 'Unknown')}"
 
-        # Get question type and parameters
-        q_type = question.get('type', 'unknown')
-        correct_answer = str(question.get('answer', '')).strip()
-        solution = question.get('solution_steps', 'No solution available')
+        else:  # Multiple choice
+            # For multiple choice, direct comparison
+            correct_option = question.get('answer', '')
+            is_correct = (student_answer == correct_option)
 
-        # Normalize both answers
-        norm_correct = normalize_answer(correct_answer)
-        norm_student = normalize_answer(student_answer)
+            if is_correct:
+                feedback = "Correct! Good job."
+            else:
+                feedback = f"Incorrect. The correct answer is: {correct_option}"
 
-        if q_type == 'free_response':
-            # Handle multiple valid answer formats
-            correct_parts = sorted(re.split(r'[,/]', norm_correct))
-            student_parts = sorted(re.split(r'[,/]', norm_student))
-
-            # Check for complete match (order-independent)
-            if set(correct_parts) == set(student_parts):
-                return True, f"Solution: {solution}"
-
-            # Check numerical equivalence
-            try:
-                correct_num = float(norm_correct)
-                student_num = float(norm_student)
-                if math.isclose(correct_num, student_num, rel_tol=0.01):
-                    return True, f"Solution: {solution}"
-            except (ValueError, TypeError):
-                pass
-
-            # Partial credit for multi-part answers
-            common = set(correct_parts) & set(student_parts)
-            if common:
-                partial = len(common) / len(correct_parts)
-                return (False,
-                        f"Partial credit ({partial:.0%}): "
-                        f"Missing {set(correct_parts) - set(student_parts)}")
-
-            return False, f"Solution: {solution}"
-
-        elif q_type == 'multiple_choice':
-            options = question.get('options', [])
-            correct_index = question.get('correct_option', -1)
-
-            if correct_index < 0 or correct_index >= len(options):
-                return False, "Invalid question configuration"
-
-            # Normalize both the option and student answer
-            normalized_options = [normalize_answer(opt) for opt in options]
-            norm_student_choice = normalize_answer(student_answer)
-
-            # Match either index or normalized text
-            if (student_answer == correct_index) or \
-                    (norm_student_choice == normalize_answer(options[correct_index])):
-                return True, f"Correct answer: {options[correct_index]}"
-
-            return False, f"Correct answer: {options[correct_index]}"
-
-        else:
-            return False, "Unsupported question type"
+        return is_correct, feedback
 
     except Exception as e:
-        st.error(f"Validation error: {str(e)}")
-        return False, "Error evaluating answer"
+        st.error(f"Error validating answer: {str(e)}")
+        return False, f"Error validating answer: {str(e)}"
 # ==================================================================
 # 2. Student Segmentation & Peer Insights
 # ==================================================================
@@ -865,6 +830,7 @@ def update_knowledge_graph_with_quiz(G, sid, topic):
         # 1. Safer mastery calculation
         total = len(responses)
         if total == 0:
+            st.warning(f"No quiz responses found for {topic}")
             return
 
         mastery = sum(1 for r in responses if r.get('is_correct', False)) / total
@@ -874,26 +840,44 @@ def update_knowledge_graph_with_quiz(G, sid, topic):
         if G.has_node(topic):
             G.nodes[topic]['mastery'] = mastery
             G.nodes[topic]['last_attempt'] = datetime.now().isoformat()
-            st.success(f"Updated mastery for {topic} to {mastery:.0%}")
+
+        # CRITICAL FIX 1: Update the knowledge_graph session state that recommendations use
+        if sid not in st.session_state.knowledge_graph:
+            st.session_state.knowledge_graph[sid] = {}
+
+        # Store mastery directly in the session state knowledge graph
+        st.session_state.knowledge_graph[sid][topic] = mastery * 100  # Convert to percentage for recommendations
+
+        # Only show the success message once
+        st.success(f"Updated mastery for {topic} to {int(mastery * 100)}%")
 
         # 3. Robust subtopic processing
         seen_subtopics = set()
         subtopic_weights = Counter()
 
+        # CRITICAL FIX 2: Use the FORMULA_QUIZ_BANK to find questions instead of QUESTION_BANK
+        # This is important because your quiz UI is using FORMULA_QUIZ_BANK
+        all_questions = []
+        for sub, questions in FORMULA_QUIZ_BANK.get(topic, {}).items():
+            all_questions.extend(questions)
+
         for response in responses:
             try:
-                # 4. Safe question lookup across all topics
-                question = None
-                for t in QUESTION_BANK:
-                    for q in QUESTION_BANK[t]:
-                        if q['id'] == response['qid']:
-                            question = q
+                # Find the question that matches this response in FORMULA_QUIZ_BANK
+                question = next((q for q in all_questions if q['id'] == response['qid']), None)
+
+                # Fallback to QUESTION_BANK if not found
+                if not question:
+                    for t in QUESTION_BANK:
+                        for q in QUESTION_BANK[t]:
+                            if q['id'] == response['qid']:
+                                question = q
+                                break
+                        if question:
                             break
-                    if question:
-                        break
 
                 if not question:
-                    st.error(f"Missing question: {response['qid']}")
+                    st.warning(f"Missing question: {response['qid']}")
                     continue
 
                 # 5. Validate subtopic fields
@@ -903,7 +887,7 @@ def update_knowledge_graph_with_quiz(G, sid, topic):
                         subtopic_weights[subtopic] += int(response.get('is_correct', 0))
 
             except Exception as e:
-                st.error(f"Error processing response: {str(e)}")
+                st.warning(f"Error processing response: {str(e)}")
                 continue
 
         # 6. Safe edge creation
@@ -913,8 +897,23 @@ def update_knowledge_graph_with_quiz(G, sid, topic):
                 seen_subtopics.add(subtopic)
             G.add_edge(topic, subtopic, relation='subtopic', weight=weight)
 
+        # CRITICAL FIX 3: Update quiz progress
+        if 'quiz_progress' not in st.session_state:
+            st.session_state.quiz_progress = {}
+        if sid not in st.session_state.quiz_progress:
+            st.session_state.quiz_progress[sid] = {}
+
+        # If mastery is high enough, increment the subtopic progress
+        if mastery >= 0.7:  # 70% mastery
+            current_progress = st.session_state.quiz_progress.get(sid, {}).get(topic, 0)
+            st.session_state.quiz_progress[sid][topic] = current_progress + 1
+
     except Exception as e:
         st.error(f"Knowledge graph update failed: {str(e)}")
+        import traceback
+        st.error(traceback.format_exc())
+
+
 # ==================================================================
 # 4. Collaborative Filtering & Peer Tutoring
 # ==================================================================
@@ -1460,7 +1459,7 @@ def main():
                                             # Add topper resource tips
                                             topper_tips = recommend_topper_resources(seg, df)
                                             if topper_tips:
-                                                st.markdown("**💡 Top Performer Habits:**")
+                                                st.markdown("**💡 Top Performer's Habits:**")
                                                 for tip in topper_tips[:2]:
                                                     st.info(tip)
                                         st.markdown("##### 🚀 Improvement Plan")
