@@ -234,7 +234,7 @@ MOTIVATION_QUOTES = {
 # 1. Data Generation
 # ==================================================================
 @st.cache_data
-def generate_student_data(num_students=500):
+def generate_student_data(num_students=100):
     np.random.seed(42)
     rows = []
     study_profiles = ['video_heavy', 'practice_heavy', 'quiz_heavy', 'balanced']
