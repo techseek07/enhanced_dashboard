@@ -33,7 +33,7 @@ scikit-learn
 xgboost
 shap
 data generation done using:-
-The function generates data for 500 students by default with four distinct learning profiles distributed according to specific probabilities:
+The function generates data for 75(optimized here)  students by default with four distinct learning profiles distributed according to specific probabilities:
 30% video-heavy learners
 25% practice-heavy learners
 20% quiz-heavy learners
@@ -156,7 +156,7 @@ Similar Student Filtering: Performance-based similarity grouping
 Progression Comparison: Time-normalized performance gap analysis
 5. Quiz and Assessment Algorithms
 Formula Answer Validation: String normalization with exponent handling
-Graph Updating from Quiz Results: Knowledge mastery calculation with subtopic relationship strengthening
+Graph Updating from Quiz Results: Knowledge mastery calculation with subtopic relationship strengthening(updates knowledge graph based on quiz result).
 Question Difficulty Analysis: Success rate threshold detection with question categorization
 6. Network Analysis Methods
 Betweenness Centrality: Used to identify important bridging concepts
