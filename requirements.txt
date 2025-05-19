@@ -7,7 +7,6 @@ plotly==5.19.0
 
 # Machine learning & stats
 scikit-learn==1.4.0
-statsmodels==0.14.0
 xgboost==2.0.3
 shap==0.45.1; sys_platform != 'darwin'  # macOS workaround
 
