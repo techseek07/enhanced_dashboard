@@ -137,20 +137,20 @@ FORMULA_QUIZ_BANK = {
         'Integral Rules': [
             {
                 "id": "calc_q2",
-                "question": "∫x² dx = ?",
-                "type": "formula",
-                "answer": "x³/3 + C",
-                "solution_steps": ["Apply the power rule for integration: ∫xⁿ dx = xⁿ⁺¹/(n+1) + C, where n=2."]
-            },
-            {
-                "id": "calc_q3",
                 "question": "∫e^x dx = ?",
                 "type": "formula",
                 "answer": "e^x + C",
                 "solution_steps": ["Recall standard integral"]
             },
             {
-                "id": "calc_q2_2",
+                "id": "calc_q3",
+                "question": "∫x² dx = ?",
+                "type": "formula",
+                "answer": "x³/3 + C",
+                "solution_steps": ["Apply the power rule for integration: ∫xⁿ dx = xⁿ⁺¹/(n+1) + C, where n=2."]
+            },
+            {
+                "id": "calc_q3_2",
                 "question": "∫cos(x) dx = ?",
                 "type": "formula",
                 "answer": "sin(x) + C",
@@ -184,11 +184,11 @@ FORMULA_QUIZ_BANK = {
                 "solution_steps": ["Divide both sides of the equation by 'nR' to isolate 'T'."]
             },
             {
-                "id": "chem_q2",
-                "question": "V₁/T₁ = V₂/T₂ → solve for V₂",
+                "id": "chem_q5",
+                "question": "Fahrenheit to Celsius: (F - 32) × 5/9 = ?",
                 "type": "formula",
-                "answer": "V₂ = V₁T₂/T₁",
-                "solution_steps": ["Multiply both sides by T₂ to isolate V₂."]
+                "answer": "C",
+                "solution_steps": ["This is the direct conversion formula."]
             }
         ],
         'Stoichiometry': [
@@ -201,26 +201,19 @@ FORMULA_QUIZ_BANK = {
             },
             {
                 "id": "chem_q4",
-                "question": "Concentration = Moles / Volume (in L) → solve for Moles",
+                "question": "Density = Mass / Volume → solve for Volume",
                 "type": "formula",
-                "answer": "Moles = Concentration × Volume",
-                "solution_steps": ["Multiply both sides by 'Volume' to isolate 'Moles'."]
+                "answer": "Volume = Mass / Density",
+                "solution_steps": ["Rearrange the formula to isolate Volume"]
             }
         ],
         'Acids and Bases': [
             {
-                "id": "chem_q5",
+                "id": "chem_q2",
                 "question": "pH = -log[H⁺] → solve for [H⁺]",
                 "type": "formula",
                 "answer": "[H⁺] = 10⁻ᵖᴴ",
                 "solution_steps": ["Take the inverse log (10 to the power of) of both sides."]
-            },
-            {
-                "id": "chem_q6",
-                "question": "pH + pOH = ?",
-                "type": "formula",
-                "answer": "14",
-                "solution_steps": ["This is a fundamental relationship for aqueous solutions at 25°C."]
             }
         ]
     },
@@ -239,6 +232,20 @@ FORMULA_QUIZ_BANK = {
                 "type": "formula",
                 "answer": "m=E/c²",
                 "solution_steps": ["Divide both sides by c²"]
+            },
+            {
+                "id": "phy_q4",
+                "question": "Work = Force × Distance → solve for Force",
+                "type": "formula",
+                "answer": "Force = Work / Distance",
+                "solution_steps": ["Divide both sides by Distance"]
+            },
+            {
+                "id": "phy_q5",
+                "question": "Kinetic Energy = ½mv² → solve for v",
+                "type": "formula",
+                "answer": "v = √(2KE/m)",
+                "solution_steps": ["Multiply by 2/m: 2KE/m = v²", "Take square root of both sides"]
             }
         ],
         'Electricity': [
@@ -267,10 +274,36 @@ FORMULA_QUIZ_BANK = {
                 "answer": "CO₂ + H₂O + ATP",
                 "solution_steps": ["Recall the products of cellular respiration (carbon dioxide, water, and energy)."]
             }
+        ],
+        'Ecology': [
+            {
+                "id": "bio_q4",
+                "question": "Formula for calculating population density?",
+                "type": "formula",
+                "answer": "Population Density = Number of Individuals / Area",
+                "solution_steps": ["Recall the definition of population density."]
+            }
+        ],
+        'Genetics': [
+            {
+                "id": "bio_q3",
+                "question": "If 'A' is dominant and 'a' is recessive, what is the phenotype of 'Aa'?",
+                "type": "concept",
+                "answer": "Dominant trait",
+                "solution_steps": ["In heterozygous individuals, the dominant allele's trait is expressed."]
+            }
+        ],
+        'Anatomy': [
+            {
+                "id": "bio_q5",
+                "question": "Hierarchy of biological organization (smallest to largest): Cell → Tissue → Organ → ?",
+                "type": "concept",
+                "answer": "Organ System",
+                "solution_steps": ["Recall the levels of biological organization."]
+            }
         ]
     }
 }
-
 
 
 if "quiz_progress" not in st.session_state:
@@ -328,18 +361,18 @@ QUESTION_BANK = {
          "answer": "e^x",
          "solution_steps": ["Recall the standard derivative of e^x."]},
         {"id": "calc_q2",
-         "text": "∫x² dx = ?",
-         "difficulty": 1,
-         "type": "formula",
-         "answer": "x³/3 + C",
-         "solution_steps": ["Apply the power rule for integration: ∫xⁿ dx = xⁿ⁺¹/(n+1) + C, where n=2."]},
-        {"id": "calc_q3",
          "text": "∫e^x dx = ?",
          "difficulty": 1,
          "type": "formula",
          "answer": "e^x + C",
          "solution_steps": ["Recall standard integral"]},
-        {"id": "calc_q2_2",
+        {"id": "calc_q3",
+         "text": "∫x² dx = ?",
+         "difficulty": 1,
+         "type": "formula",
+         "answer": "x³/3 + C",
+         "solution_steps": ["Apply the power rule for integration: ∫xⁿ dx = xⁿ⁺¹/(n+1) + C, where n=2."]},
+        {"id": "calc_q3_2",
          "text": "∫cos(x) dx = ?",
          "difficulty": 1,
          "type": "formula",
@@ -366,11 +399,11 @@ QUESTION_BANK = {
          "answer": "T=PV/(nR)",
          "solution_steps": ["Divide both sides by nR"]},
         {"id": "chem_q2",
-         "text": "V₁/T₁ = V₂/T₂ → solve for V₂",
-         "difficulty": 1,
+         "text": "pH = -log[H⁺] → solve for [H⁺]",
+         "difficulty": 2,
          "type": "formula",
-         "answer": "V₂ = V₁T₂/T₁",
-         "solution_steps": ["Multiply both sides by T₂ to isolate V₂."]},
+         "answer": "[H⁺] = 10⁻ᵖᴴ",
+         "solution_steps": ["Take inverse log (10 to the power of) of both sides"]},
         {"id": "chem_q3",
          "text": "Moles = Mass / Molar Mass → solve for Mass",
          "difficulty": 1,
@@ -378,23 +411,17 @@ QUESTION_BANK = {
          "answer": "Mass = Moles × Molar Mass",
          "solution_steps": ["Multiply both sides by Molar Mass"]},
         {"id": "chem_q4",
-         "text": "Concentration = Moles / Volume (in L) → solve for Moles",
+         "text": "Density = Mass / Volume → solve for Volume",
          "difficulty": 1,
          "type": "formula",
-         "answer": "Moles = Concentration × Volume",
-         "solution_steps": ["Multiply both sides by 'Volume' to isolate 'Moles'."]},
+         "answer": "Volume = Mass / Density",
+         "solution_steps": ["Rearrange the formula to isolate Volume"]},
         {"id": "chem_q5",
-         "text": "pH = -log[H⁺] → solve for [H⁺]",
-         "difficulty": 2,
-         "type": "formula",
-         "answer": "[H⁺] = 10⁻ᵖᴴ",
-         "solution_steps": ["Take inverse log (10 to the power of) of both sides"]},
-        {"id": "chem_q6",
-         "text": "pH + pOH = ?",
+         "text": "Fahrenheit to Celsius: (F - 32) × 5/9 = ?",
          "difficulty": 1,
          "type": "formula",
-         "answer": "14",
-         "solution_steps": ["This is a fundamental relationship for aqueous solutions at 25°C."]}
+         "answer": "C",
+         "solution_steps": ["This is the direct conversion formula."]}
     ],
     'Physics': [
         {"id": "phy_q1",
@@ -442,7 +469,7 @@ QUESTION_BANK = {
          "answer": "CO₂ + H₂O + ATP",
          "solution_steps": ["Recall the products of cellular respiration (carbon dioxide, water, and energy)."]},
         {"id": "bio_q3",
-         "text": "Genetics: If 'A' is dominant and 'a' is recessive, what is the phenotype of 'Aa'?",
+         "text": "If 'A' is dominant and 'a' is recessive, what is the phenotype of 'Aa'?",
          "difficulty": 2,
          "type": "concept",
          "answer": "Dominant trait",
