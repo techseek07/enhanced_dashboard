@@ -24,7 +24,7 @@ import random
 
 PREREQUISITES = {
     'Geometry':      ['Algebra'],
-    'Calculus':      ['Applications of Integrals:','Geometry'],
+    'Calculus':      ['Applications of Integrals','Geometry'],
     'Derivatives':   ['Calculus'],           # derivative builds on calculus
     'Chemistry':     ['reactions'],
     'Gas Laws':      ['Chemistry'],
@@ -525,7 +525,7 @@ MOTIVATION_QUOTES = {
 # 1. Data Generation
 # ==================================================================
 @st.cache_data
-def generate_student_data(num_students=75):
+def generate_student_data(num_students=110):
     np.random.seed(42)
     # Add topic difficulty factors
 
@@ -2119,7 +2119,7 @@ def main():
                 try:
                     pos = nx.spring_layout(G, seed=42)
                     edge_colors = {
-                        'prereq': '#FF0000', 'odds': '#00FF00',
+                        'prereq': '#FF0000', 'odds_ratio': '#00FF00',
                         'shap_importance': '#0000FF', 'application': '#800080',
                         'subtopic': '#FFA500', 'sub_prereq': '#FF69B4',
                         'app_preparation': '#008080',
