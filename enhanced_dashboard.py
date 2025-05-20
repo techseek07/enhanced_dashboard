@@ -929,10 +929,8 @@ def build_knowledge_graph(prereqs, df, topics, OR_thresh=1.5, SHAP_thresh=0.01,
                        grp.groupby('StudentID').attempts.sum()).reindex(student_ids)
         avg_time = grp.groupby('StudentID').time.mean().reindex(student_ids)
 
-        # Statistical analysis
-        with st.spinner("Analyzing statistical relationships..."):
-            # Statistical relationship detection
-            for topic_a, topic_b in combinations(topics, 2):
+
+        for topic_a, topic_b in combinations(topics, 2):
                 if topic_a not in G.nodes or topic_b not in G.nodes:
                     continue
 
@@ -1094,7 +1092,7 @@ def apply_dual_tier_scoring(G):
 
         # IMPROVEMENT 2: Consider source node importance
         outgoing_edges = len([e for e in G.out_edges(source)])
-        source_bonus = min(1, outgoing_edges / 3)
+        source_bonus = min(1.0, outgoing_edges / 3)
 
         # Tier assignment with new factors
         total = score + bonus + source_bonus
@@ -1343,6 +1341,13 @@ def validate_answer(question, student_answer):
     except Exception as e:
         st.error(f"Error validating answer: {str(e)}")
         return False, f"Error validating answer: {str(e)}"
+def find_question_by_id(question_id):
+    """Find a question by its ID across all topics in the question bank"""
+    for topic, questions in QUESTION_BANK.items():
+        for question in questions:
+            if question['id'] == question_id:
+                return question
+    return None
 
 # ==================================================================
 # 4. question tracking
@@ -2018,9 +2023,6 @@ def main():
         .graph-container {border:1px solid #ddd; border-radius:5px; padding:10px;}
         </style>
         """, unsafe_allow_html=True)
-
-    if 'quiz_progress' not in st.session_state:
-        st.session_state.quiz_progress = {}
     if 'question_responses' not in st.session_state:
         st.session_state.question_responses = {}
 
@@ -2038,8 +2040,9 @@ def main():
                 st.error("No student data generated")
                 st.stop()
         # Initialize session state quiz progress from synthetic data
-        if 'quiz_progress' not in st.session_state:
-            st.session_state.quiz_progress = {}
+            sample_students = [0, 1, 2, 3]  # Just initialize a few students
+            for sid in sample_students:
+                st.session_state.quiz_progress[sid] = {}
 
             # Use groupby to get the maximum progress per student and topic
             max_progress = df.groupby(['StudentID', 'Topic'])['QuizProgress'].max().reset_index()
@@ -2053,14 +2056,14 @@ def main():
                 if sid not in st.session_state.quiz_progress:
                     st.session_state.quiz_progress[sid] = {}
 
-                # Only update if there's actual progress
-                if qp > 0:
                     st.session_state.quiz_progress[sid][topic] = qp
-            st.write(f"Debug - Quiz Progress: {st.session_state.quiz_progress}")
+
 
         # Modified graph building section
         if not nx.nodes(st.session_state.knowledge_graph):
-            with st.spinner("Building knowledge graph..."):
+            # Split into initialization and statistical analysis #################
+            with st.spinner("Building knowledge graph structure..."):
+                # Create modified function that doesn't use internal spinners
                 st.session_state.knowledge_graph = build_knowledge_graph(PREREQUISITES, df, TOPICS)
                 apply_dual_tier_scoring(st.session_state.knowledge_graph)
 
@@ -2126,8 +2129,6 @@ def main():
         df.loc[df.StudentID == sid, 'MotivationLevel'] = override_mot
         # Add right after the override_mot section in the sidebar
         st.sidebar.markdown("---")
-        with st.sidebar.expander("🛠️ Debug Information", expanded=False):
-            st.write("**Session State Keys:**", list(st.session_state.keys()))
         # ── Peer Tutoring Section ──
         with st.expander("🔗 Peer Tutoring Matches", expanded=False):
             st.write("Students who complement your strengths/weaknesses:")
@@ -2346,6 +2347,19 @@ def main():
                         st.error(f"Comparison failed: {str(e)}")
                 else:
                     st.warning("Select a student to enable peer comparison")
+
+            # Define this validation function at the top level of your script
+            def validate_quiz_topic(topic):
+                """Validate a quiz topic and return whether it's valid"""
+                if topic not in FORMULA_QUIZ_BANK:
+                    st.error("Invalid quiz topic selected")
+                    return False
+
+                if not FORMULA_QUIZ_BANK[topic]:
+                    st.error("No questions available for this topic")
+                    return False
+
+                return True
             # Quiz Section
             st.markdown('<p class="medium-font">Interactive Quiz Section</p>', unsafe_allow_html=True)
             try:
