@@ -24,7 +24,7 @@ import random
 
 PREREQUISITES = {
     'Geometry':      ['Algebra'],
-    'Calculus':      ['Applications of Integrals','Geometry'],
+    'Calculus':      ['Algebra','Geometry'],
     'Derivatives':   ['Calculus'],           # derivative builds on calculus
     'Chemistry':     ['reactions'],
     'Gas Laws':      ['Chemistry'],
@@ -41,7 +41,7 @@ TOPICS = [
     'Biology',
     'Kinematics',
     'reactions',
-'Applications of Integrals',]
+]
 
 SUBTOPICS = {
     'Algebra':    ['Equations','Inequalities','Polynomials'],
@@ -53,7 +53,6 @@ SUBTOPICS = {
     'Biology':    ['Cells','Genetics','Ecology'],
     'Kinematics': ['Velocity','Acceleration','Projectile Motion'],
     'reactions': ['synthesis', 'decomposition', 'combustion', 'acid-base'],
-'Applications of Integrals':['Volumes of solids of revolution','Average value of a function','Improper integrals'],
 }
 
 # Application-level edges
@@ -525,8 +524,9 @@ MOTIVATION_QUOTES = {
 # 1. Data Generation
 # ==================================================================
 @st.cache_data
-def generate_student_data(num_students=110):
+def generate_student_data(num_students=75):
     np.random.seed(42)
+    # Add topic difficulty factors
 
     rows = []
     study_profiles = ['video_heavy', 'practice_heavy', 'quiz_heavy', 'balanced']
@@ -666,6 +666,11 @@ def generate_student_data(num_students=110):
             continue
 
     return pd.DataFrame(rows)
+
+
+
+
+
 # ==================================================================
 # 2. Student Segmentation & Peer Insights
 # ==================================================================
@@ -858,7 +863,7 @@ def progression_summary(df, student1, student2, time_tolerance=0.35, perf_gap=0.
 # ==================================================================
 # 3. Knowledge Graph Construction
 # ==================================================================
-def build_knowledge_graph(prereqs, df, topics, OR_thresh=1.5, SHAP_thresh=0.01,
+def build_knowledge_graph(prereqs, df, topics, OR_thresh=2.0, SHAP_thresh=0.01,
                           min_count=20, application_relations=None):
     """
     Build a knowledge graph using statistical analysis of learning relationships.
@@ -977,20 +982,11 @@ def build_knowledge_graph(prereqs, df, topics, OR_thresh=1.5, SHAP_thresh=0.01,
 
                     # SHAP analysis
                     a_importance = 0
-                    if len(y) >= 100:  # Need at least 100 students
+                    if len(y) >= 100:
                         try:
-                            # Add this block - explicit label encoding
-                            from sklearn.preprocessing import LabelEncoder
-                            le = LabelEncoder()
-                            y_encoded = le.fit_transform(y)
-
-                            # Change this line - remove deprecated parameter
-                            xgb = XGBClassifier(eval_metric='logloss', random_state=42)
-
-                            # Change this line - use encoded labels
-                            xgb.fit(X, y_encoded)
-
-                            # Keep these lines the same
+                            xgb = XGBClassifier(use_label_encoder=False, eval_metric='logloss',
+                                                random_state=42)
+                            xgb.fit(X, y)
                             explainer = shap.TreeExplainer(xgb)
                             shap_values = explainer.shap_values(X)
                             a_importance = np.abs(shap_values[:, 0]).mean()
@@ -1778,7 +1774,7 @@ def get_recommendations(sid, df, G, seg, mot='High'):
                         priority += 1.0
                     elif relation == 'application':
                         context = "Practical application area"
-                        priority += 1.0
+                        priority += 0.8
                     elif relation == 'subtopic':
                         context = "Important subtopic to master"
                         priority += 0.5
@@ -1787,7 +1783,7 @@ def get_recommendations(sid, df, G, seg, mot='High'):
                         priority += 0.8
                     elif relation == 'shap_importance':
                         context = "High-impact concept"
-                        priority += 0.7
+                        priority += 1.0
                     else:
                         context = "Connected concept"
 
@@ -1801,7 +1797,7 @@ def get_recommendations(sid, df, G, seg, mot='High'):
             seq = pq.get('recent', []) + pq.get('historical', []) + pq.get('fundamental', [])
 
             # Build recommendation with context explanation
-            importance = "❗❗" if priority > 3.5 else "❗" if priority > 2.5 else ""
+            importance = "❗❗" if priority > 3.5 else "❗" if priority > 3.0 else ""
             rec.append(f"📚 Practice {t}{importance}: {', '.join(seq[:3])} - {context}")
 
     # 5) Quiz recommendations
@@ -2014,26 +2010,6 @@ def main():
             if df.empty:
                 st.error("No student data generated")
                 st.stop()
-        # Initialize session state quiz progress from synthetic data
-        if 'quiz_progress' not in st.session_state:
-            st.session_state.quiz_progress = {}
-
-            # Use groupby to get the maximum progress per student and topic
-            max_progress = df.groupby(['StudentID', 'Topic'])['QuizProgress'].max().reset_index()
-
-            # For each student-topic pair, copy synthetic progress to session state
-            for _, row in max_progress.iterrows():
-                sid = int(row['StudentID'])
-                topic = row['Topic']
-                qp = int(row['QuizProgress'])
-
-                if sid not in st.session_state.quiz_progress:
-                    st.session_state.quiz_progress[sid] = {}
-
-                # Only update if there's actual progress
-                if qp > 0:
-                    st.session_state.quiz_progress[sid][topic] = qp
-            st.write(f"Debug - Quiz Progress: {st.session_state.quiz_progress}")
 
         # Modified graph building section
         if not nx.nodes(st.session_state.knowledge_graph):
@@ -2122,10 +2098,12 @@ def main():
                 try:
                     pos = nx.spring_layout(G, seed=42)
                     edge_colors = {
-                        'prereq': '#FF0000', 'odds_ratio': '#00FF00',
+                        'prereq': '#FF0000', 'odds': '#00FF00',
                         'shap_importance': '#0000FF', 'application': '#800080',
                         'subtopic': '#FFA500', 'sub_prereq': '#FF69B4',
                         'app_preparation': '#008080',
+                        'pc_causal': '#006400',  # Dark green for causal edges
+                        'pc_association': '#4B0082'  # Indigo for association edges
                     }
                     traces = []
                     for rel, col in edge_colors.items():
