@@ -527,7 +527,6 @@ MOTIVATION_QUOTES = {
 @st.cache_data
 def generate_student_data(num_students=110):
     np.random.seed(42)
-    # Add topic difficulty factors
 
     rows = []
     study_profiles = ['video_heavy', 'practice_heavy', 'quiz_heavy', 'balanced']
@@ -667,11 +666,6 @@ def generate_student_data(num_students=110):
             continue
 
     return pd.DataFrame(rows)
-
-
-
-
-
 # ==================================================================
 # 2. Student Segmentation & Peer Insights
 # ==================================================================
@@ -929,8 +923,10 @@ def build_knowledge_graph(prereqs, df, topics, OR_thresh=1.5, SHAP_thresh=0.01,
                        grp.groupby('StudentID').attempts.sum()).reindex(student_ids)
         avg_time = grp.groupby('StudentID').time.mean().reindex(student_ids)
 
-
-        for topic_a, topic_b in combinations(topics, 2):
+        # Statistical analysis
+        with st.spinner("Analyzing statistical relationships..."):
+            # Statistical relationship detection
+            for topic_a, topic_b in combinations(topics, 2):
                 if topic_a not in G.nodes or topic_b not in G.nodes:
                     continue
 
@@ -1065,7 +1061,7 @@ def build_knowledge_graph(prereqs, df, topics, OR_thresh=1.5, SHAP_thresh=0.01,
 
 def apply_dual_tier_scoring(G):
     """
-    Applies tiered scoring to edges based on relationship type, edge weight, and node connectivity.
+    Applies tiered scoring to edges based on relationship type and node connectivity.
     """
     # Base scores for different relationship types
     base_scores = {
@@ -1081,21 +1077,14 @@ def apply_dual_tier_scoring(G):
     for source, target, data in G.edges(data=True):
         # Get score from relationship type
         relation = data.get('relation', 'other')
+        score = base_scores.get(relation, 1)
 
-        # IMPROVEMENT 1: Factor in edge weight
-        weight_factor = min(data.get('weight', 1.0) / 2, 2.0)
-        score = base_scores.get(relation, 1) * weight_factor
-
-        # Bonus for important target nodes (number of incoming edges)
+        # Bonus for important nodes (number of incoming edges)
         incoming_edges = len([e for e in G.in_edges(target) if e[0] != source])
         bonus = min(2, incoming_edges)
 
-        # IMPROVEMENT 2: Consider source node importance
-        outgoing_edges = len([e for e in G.out_edges(source)])
-        source_bonus = min(1.0, outgoing_edges / 3)
-
-        # Tier assignment with new factors
-        total = score + bonus + source_bonus
+        # Tier assignment
+        total = score + bonus
         if total >= 4:
             data['tier'] = 1
         elif total >= 2:
@@ -1104,8 +1093,6 @@ def apply_dual_tier_scoring(G):
             data['tier'] = 3  # Lowest priority tier
 
     return G
-
-
 def update_knowledge_graph_with_quiz(G, sid, topic):
     """More impactful graph updates with debugging"""
     try:
@@ -1341,13 +1328,6 @@ def validate_answer(question, student_answer):
     except Exception as e:
         st.error(f"Error validating answer: {str(e)}")
         return False, f"Error validating answer: {str(e)}"
-def find_question_by_id(question_id):
-    """Find a question by its ID across all topics in the question bank"""
-    for topic, questions in QUESTION_BANK.items():
-        for question in questions:
-            if question['id'] == question_id:
-                return question
-    return None
 
 # ==================================================================
 # 4. question tracking
@@ -1616,34 +1596,27 @@ def get_quiz_recommendations(sid, completed):
     """
     rec = []
 
-    # Access quiz progress WITHOUT using setdefault (which resets values)
-    quiz_progress = st.session_state.get('quiz_progress', {})
-    student_progress = quiz_progress.get(sid, {})
+    # Ensure quiz_progress is initialized
+    if 'quiz_progress' not in st.session_state:
+        st.session_state.quiz_progress = {}
+    if sid not in st.session_state.quiz_progress:
+        st.session_state.quiz_progress[sid] = {}
 
-    # Find all topics with quiz progress, regardless of completion
-    progress_topics = set(completed)  # Start with completed topics
-    progress_topics.update(student_progress.keys())  # Add topics with progress
-
-    # Process all relevant topics
-    for t in progress_topics:
+    # Only recommend topics the student has completed
+    for t in completed:
         if t in FORMULA_QUIZ_BANK:
-            # Get current progress from existing data without modifying it
-            p = student_progress.get(t, 0)
-            subtopics = list(FORMULA_QUIZ_BANK[t].keys())
-            total_sections = len(subtopics)
+            # Get current progress or default to 0
+            p = st.session_state.quiz_progress.setdefault(sid, {}).get(t, 0)
+            subs = list(FORMULA_QUIZ_BANK[t].keys())
 
             # Check if there are more subtopics available
-            if p < total_sections:
-                # Get the next subtopic name
-                next_subtopic = subtopics[p] if p < len(subtopics) else "Review"
-
+            if p < len(subs):
                 # Add context for the recommendation
                 if p == 0:
                     context = "Get started with your first quiz"
                 else:
-                    context = f"Continue with section {p + 1}/{total_sections}"
-
-                rec.append(f"📝 Quiz Alert: {next_subtopic} ({t}) - {context}")
+                    context = f"Continue progress ({p}/{len(subs)} completed)"
+                rec.append(f"📝 Quiz Alert: {subs[p]} ({t}) - {context}")
             else:
                 # All subtopics completed
                 # Get mastery from graph
@@ -1656,7 +1629,6 @@ def get_quiz_recommendations(sid, completed):
                             rec.append(f"📝 Review Alert: {t} (Mastery: {int(mastery)}%)")
 
     return rec
-
 
 # ==================================================================
 # 6. Comprehensive Recommendations
@@ -2023,6 +1995,9 @@ def main():
         .graph-container {border:1px solid #ddd; border-radius:5px; padding:10px;}
         </style>
         """, unsafe_allow_html=True)
+
+    if 'quiz_progress' not in st.session_state:
+        st.session_state.quiz_progress = {}
     if 'question_responses' not in st.session_state:
         st.session_state.question_responses = {}
 
@@ -2040,9 +2015,8 @@ def main():
                 st.error("No student data generated")
                 st.stop()
         # Initialize session state quiz progress from synthetic data
-            sample_students = [0, 1, 2, 3]  # Just initialize a few students
-            for sid in sample_students:
-                st.session_state.quiz_progress[sid] = {}
+        if 'quiz_progress' not in st.session_state:
+            st.session_state.quiz_progress = {}
 
             # Use groupby to get the maximum progress per student and topic
             max_progress = df.groupby(['StudentID', 'Topic'])['QuizProgress'].max().reset_index()
@@ -2056,14 +2030,14 @@ def main():
                 if sid not in st.session_state.quiz_progress:
                     st.session_state.quiz_progress[sid] = {}
 
+                # Only update if there's actual progress
+                if qp > 0:
                     st.session_state.quiz_progress[sid][topic] = qp
-
+            st.write(f"Debug - Quiz Progress: {st.session_state.quiz_progress}")
 
         # Modified graph building section
         if not nx.nodes(st.session_state.knowledge_graph):
-            # Split into initialization and statistical analysis #################
-            with st.spinner("Building knowledge graph structure..."):
-                # Create modified function that doesn't use internal spinners
+            with st.spinner("Building knowledge graph..."):
                 st.session_state.knowledge_graph = build_knowledge_graph(PREREQUISITES, df, TOPICS)
                 apply_dual_tier_scoring(st.session_state.knowledge_graph)
 
@@ -2127,8 +2101,7 @@ def main():
             key="override_mot"
         )
         df.loc[df.StudentID == sid, 'MotivationLevel'] = override_mot
-        # Add right after the override_mot section in the sidebar
-        st.sidebar.markdown("---")
+
         # ── Peer Tutoring Section ──
         with st.expander("🔗 Peer Tutoring Matches", expanded=False):
             st.write("Students who complement your strengths/weaknesses:")
@@ -2347,19 +2320,6 @@ def main():
                         st.error(f"Comparison failed: {str(e)}")
                 else:
                     st.warning("Select a student to enable peer comparison")
-
-            # Define this validation function at the top level of your script
-            def validate_quiz_topic(topic):
-                """Validate a quiz topic and return whether it's valid"""
-                if topic not in FORMULA_QUIZ_BANK:
-                    st.error("Invalid quiz topic selected")
-                    return False
-
-                if not FORMULA_QUIZ_BANK[topic]:
-                    st.error("No questions available for this topic")
-                    return False
-
-                return True
             # Quiz Section
             st.markdown('<p class="medium-font">Interactive Quiz Section</p>', unsafe_allow_html=True)
             try:
