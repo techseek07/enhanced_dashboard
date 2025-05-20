@@ -1,5 +1,10 @@
 
 # enhanced_dashboard_complete.py
+try:
+    from causallearn.search.ConstraintBased.PC import pc
+except ImportError:
+    # Fallback if not installed
+    pass
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -71,6 +76,38 @@ FORMULA_QUIZ_BANK = {
                 "answer": "2 or 3",
                 "solution_steps": ["Factor: (x-2)(x-3)=0", "Solutions: x=2, x=3"]
             }
+        ],
+        'Linear Equations': [
+            {
+                "id": "alg_q2",
+                "question": "3x+6=15 → x?",
+                "type": "formula",
+                "answer": "3",
+                "solution_steps": ["Subtract 6 from both sides: 3x=9", "Divide by 3: x=3"]
+            },
+            {
+                "id": "alg_q2_2",
+                "question": "2(x+1)=10 → x?",
+                "type": "formula",
+                "answer": "4",
+                "solution_steps": ["Divide by 2: x+1=5", "Subtract 1: x=4"]
+            }
+        ],
+        'Polynomial Functions': [
+            {
+                "id": "alg_q3",
+                "question": "(x-2)(x+3) → expanded form?",
+                "type": "formula",
+                "answer": "x²+x-6",
+                "solution_steps": ["Multiply using FOIL: (x)(x) + (x)(3) + (-2)(x) + (-2)(3)"]
+            },
+            {
+                "id": "alg_q3_2",
+                "question": "(x+1)² → expanded form?",
+                "type": "formula",
+                "answer": "x²+2x+1",
+                "solution_steps": ["Apply (a+b)²=a²+2ab+b²"]
+            }
         ]
     },
     'Calculus': {
@@ -81,6 +118,52 @@ FORMULA_QUIZ_BANK = {
                 "type": "formula",
                 "answer": "3x²",
                 "solution_steps": ["Apply the power rule: d/dx(xⁿ) = nxⁿ⁻¹ where n=3."]
+            },
+            {
+                "id": "calc_q1_2",
+                "question": "d/dx(sin(x))=?",
+                "type": "formula",
+                "answer": "cos(x)",
+                "solution_steps": ["Recall the standard derivative of sin(x)."]
+            },
+            {
+                "id": "calc_q1_3",
+                "question": "d/dx(e^x)=?",
+                "type": "formula",
+                "answer": "e^x",
+                "solution_steps": ["Recall the standard derivative of e^x."]
+            }
+        ],
+        'Integral Rules': [
+{
+                "id": "calc_q2",
+                "question": "∫x² dx = ?",
+                "type": "formula",
+                "answer": "x³/3 + C",
+                "solution_steps": ["Apply the power rule for integration: ∫xⁿ dx = xⁿ⁺¹/(n+1) + C, where n=2."]
+            },
+            {
+                "id": "calc_q2_2",
+                "question": "∫cos(x) dx = ?",
+                "type": "formula",
+                "answer": "sin(x) + C",
+                "solution_steps": ["Recall the standard integral of cos(x)."]
+            }
+        ],
+        'Limits': [
+            {
+                "id": "calc_q3",
+                "question": "lim(x→0) (sin(x)/x) = ?",
+                "type": "formula",
+                "answer": "1",
+                "solution_steps": ["This is a fundamental limit in calculus."]
+            },
+            {
+                "id": "calc_q3_2",
+                "question": "lim(x→∞) (1/x) = ?",
+                "type": "formula",
+                "answer": "0",
+                "solution_steps": ["As x approaches infinity, 1/x approaches 0."]
             }
         ]
     },
@@ -92,39 +175,219 @@ FORMULA_QUIZ_BANK = {
                 "type": "formula",
                 "answer": "T=PV/(nR)",
                 "solution_steps": ["Divide both sides of the equation by 'nR' to isolate 'T'."]
+            },
+            {
+                "id": "chem_q1_2",
+                "question": "V₁/T₁ = V₂/T₂ → solve for V₂",
+                "type": "formula",
+                "answer": "V₂ = V₁T₂/T₁",
+                "solution_steps": ["Multiply both sides by T₂ to isolate V₂."]
+            }
+        ],
+        'Stoichiometry': [
+            {
+                "id": "chem_q2",
+                "question": "Moles = Mass / Molar Mass → solve for Mass",
+                "type": "formula",
+                "answer": "Mass = Moles × Molar Mass",
+                "solution_steps": ["Multiply both sides by 'Molar Mass' to isolate 'Mass'."]
+            },
+            {
+                "id": "chem_q2_2",
+                "question": "Concentration = Moles / Volume (in L) → solve for Moles",
+                "type": "formula",
+                "answer": "Moles = Concentration × Volume",
+                "solution_steps": ["Multiply both sides by 'Volume' to isolate 'Moles'."]
+            }
+        ],
+        'Acids and Bases': [
+            {
+                "id": "chem_q3",
+                "question": "pH = -log[H⁺] → solve for [H⁺]",
+                "type": "formula",
+                "answer": "[H⁺] = 10⁻ᵖᴴ",
+                "solution_steps": ["Take the inverse log (10 to the power of) of both sides."]
+            },
+            {
+                "id": "chem_q3_2",
+                "question": "pH + pOH = ?",
+                "type": "formula",
+                "answer": "14",
+                "solution_steps": ["This is a fundamental relationship for aqueous solutions at 25°C."]
             }
         ]
+
     }
 }
+
 
 if "quiz_progress" not in st.session_state:
     st.session_state.quiz_progress = {}
 QUESTION_BANK = {
     'Algebra': [
-        {"id":"alg_q1",
-         "text":"x²−5x+6=0 → x?",
-         "difficulty":1,
-         "type":"formula",
-         "answer":"2 or 3",
-         "solution_steps":["Factor: (x-2)(x-3)=0", "Solutions: x=2, x=3"]}
+        {"id": "alg_q1",
+         "text": "x²−5x+6=0 → x?",
+         "difficulty": 1,
+         "type": "formula",
+         "answer": "2 or 3",
+         "solution_steps": ["Factor: (x-2)(x-3)=0", "Solutions: x=2, x=3"]},
+        {"id": "alg_q2",
+         "text": "3x+6=15 → x?",
+         "difficulty": 1,
+         "type": "formula",
+         "answer": "3",
+         "solution_steps": ["Subtract 6 from both sides: 3x=9", "Divide by 3: x=3"]},
+        {"id": "alg_q2_2",
+         "text": "2(x+1)=10 → x?",
+         "difficulty": 1,
+         "type": "formula",
+         "answer": "4",
+         "solution_steps": ["Divide by 2: x+1=5", "Subtract 1: x=4"]},
+        {"id": "alg_q3",
+         "text": "(x-2)(x+3) → expanded form?",
+         "difficulty": 1,
+         "type": "formula",
+         "answer": "x²+x-6",
+         "solution_steps": ["Multiply using FOIL: (x)(x) + (x)(3) + (-2)(x) + (-2)(3)"]},
+        {"id": "alg_q3_2",
+         "text": "(x+1)² → expanded form?",
+         "difficulty": 1,
+         "type": "formula",
+         "answer": "x²+2x+1",
+         "solution_steps": ["Apply (a+b)²=a²+2ab+b²"]}
     ],
     'Calculus': [
-        {"id":"calc_q1",
-         "text":"d/dx(x³)=?",
-         "difficulty":1,
-         "type":"formula",
-         "answer":"3x²",
-         "solution_steps":["Apply power rule"]}
+        {"id": "calc_q1",
+         "text": "d/dx(x³)=?",
+         "difficulty": 1,
+         "type": "formula",
+         "answer": "3x²",
+         "solution_steps": ["Apply the power rule: d/dx(xⁿ) = nxⁿ⁻¹ where n=3."]},
+        {"id": "calc_q1_2",
+         "text": "d/dx(sin(x))=?",
+         "difficulty": 1,
+         "type": "formula",
+         "answer": "cos(x)",
+         "solution_steps": ["Recall the standard derivative of sin(x)."]},
+        {"id": "calc_q3",
+         "text": "d/dx(sin(x))=?",
+         "difficulty": 1,
+         "type": "formula",
+         "answer": "cos(x)",
+         "solution_steps": ["Recall standard derivative"]},
+        {"id": "calc_q4",
+         "text": "∫e^x dx = ?",
+         "difficulty": 1,
+         "type": "formula",
+         "answer": "e^x + C",
+         "solution_steps": ["Recall standard integral"]},
+        {"id": "calc_q5",
+         "text": "lim(x→0) (sin(x)/x) = ?",
+         "difficulty": 3,
+         "type": "formula",
+         "answer": "1",
+         "solution_steps": ["Apply L'Hopital's Rule or recall fundamental limit"]}
     ],
     'Chemistry': [
-        {"id":"chem_q1",
-         "text":"PV=nRT → solve for T",
-         "difficulty":1,
-         "type":"formula",
-         "answer":"T=PV/(nR)",
-         "solution_steps":["Divide both sides by nR"]}
+{"id": "chem_q1",
+         "text": "PV=nRT → solve for T",
+         "difficulty": 1,
+         "type": "formula",
+         "answer": "T=PV/(nR)",
+         "solution_steps": ["Divide both sides by nR"]},
+        {"id": "chem_q2",
+         "text": "pH = -log[H⁺] → solve for [H⁺]",
+         "difficulty": 2,
+         "type": "formula",
+         "answer": "[H⁺] = 10⁻ᵖᴴ",
+         "solution_steps": ["Take inverse log (10 to the power of) of both sides"]},
+        {"id": "chem_q3",
+         "text": "Moles = Mass / Molar Mass → solve for Mass",
+         "difficulty": 1,
+         "type": "formula",
+         "answer": "Mass = Moles × Molar Mass",
+         "solution_steps": ["Multiply both sides by Molar Mass"]},
+        {"id": "chem_q4",
+         "text": "Density = Mass / Volume → solve for Volume",
+         "difficulty": 1,
+         "type": "formula",
+         "answer": "Volume = Mass / Density",
+         "solution_steps": ["Rearrange the formula to isolate Volume"]},
+        {"id": "chem_q5",
+         "text": "Fahrenheit to Celsius: (F - 32) × 5/9 = ?",
+         "difficulty": 1,
+         "type": "formula",
+         "answer": "C",
+         "solution_steps": ["This is the direct conversion formula."]}
+    ],
+    'Physics': [
+        {"id": "phy_q1",
+         "text": "F=ma → solve for a",
+         "difficulty": 1,
+         "type": "formula",
+         "answer": "a=F/m",
+         "solution_steps": ["Divide both sides by m"]},
+        {"id": "phy_q2",
+         "text": "E=mc² → solve for m",
+         "difficulty": 2,
+         "type": "formula",
+         "answer": "m=E/c²",
+         "solution_steps": ["Divide both sides by c²"]},
+        {"id": "phy_q3",
+         "text": "V=IR → solve for I",
+         "difficulty": 1,
+         "type": "formula",
+         "answer": "I=V/R",
+         "solution_steps": ["Divide both sides by R"]},
+        {"id": "phy_q4",
+         "text": "Work = Force × Distance → solve for Force",
+         "difficulty": 1,
+         "type": "formula",
+         "answer": "Force = Work / Distance",
+         "solution_steps": ["Divide both sides by Distance"]},
+        {"id": "phy_q5",
+         "text": "Kinetic Energy = ½mv² → solve for v",
+         "difficulty": 3,
+         "type": "formula",
+         "answer": "v = √(2KE/m)",
+         "solution_steps": ["Multiply by 2/m: 2KE/m = v²", "Take square root of both sides"]}
+    ],
+    'Biology': [
+        {"id": "bio_q1",
+         "text": "Photosynthesis equation: CO₂ + H₂O + Light Energy → ?",
+         "difficulty": 1,
+         "type": "formula",
+         "answer": "C₆H₁₂O₆ + O₂",
+         "solution_steps": ["Recall the products of photosynthesis (glucose and oxygen)."]},
+        {"id": "bio_q2",
+         "text": "Cellular Respiration equation: C₆H₁₂O₆ + O₂ → ?",
+         "difficulty": 1,
+         "type": "formula",
+         "answer": "CO₂ + H₂O + ATP",
+         "solution_steps": ["Recall the products of cellular respiration (carbon dioxide, water, and energy)."]},
+        {"id": "bio_q3",
+         "text": "Genetics: If 'A' is dominant and 'a' is recessive, what is the phenotype of 'Aa'?",
+         "difficulty": 2,
+         "type": "concept",
+         "answer": "Dominant trait",
+         "solution_steps": ["In heterozygous individuals, the dominant allele's trait is expressed."]},
+        {"id": "bio_q4",
+         "text": "Formula for calculating population density?",
+         "difficulty": 2,
+         "type": "formula",
+         "answer": "Population Density = Number of Individuals / Area",
+         "solution_steps": ["Recall the definition of population density."]},
+        {"id": "bio_q5",
+         "text": "Hierarchy of biological organization (smallest to largest): Cell → Tissue → Organ → ?",
+         "difficulty": 1,
+         "type": "concept",
+         "answer": "Organ System",
+         "solution_steps": ["Recall the levels of biological organization."]}
+
+
     ]
 }
+
 # Question response tracking
 if "question_responses" not in st.session_state:
     st.session_state.question_responses = {}
@@ -562,7 +825,7 @@ def build_knowledge_graph(prereqs, df, topics, OR_thresh=2.0, SHAP_thresh=0.01,
     Build a knowledge graph using statistical analysis of learning relationships.
     """
     import numpy as np
-    import time
+
     from itertools import combinations
     from collections import Counter
 
