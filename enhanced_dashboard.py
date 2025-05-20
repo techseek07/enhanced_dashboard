@@ -135,12 +135,19 @@ FORMULA_QUIZ_BANK = {
             }
         ],
         'Integral Rules': [
-{
+            {
                 "id": "calc_q2",
                 "question": "∫x² dx = ?",
                 "type": "formula",
                 "answer": "x³/3 + C",
                 "solution_steps": ["Apply the power rule for integration: ∫xⁿ dx = xⁿ⁺¹/(n+1) + C, where n=2."]
+            },
+            {
+                "id": "calc_q3",
+                "question": "∫e^x dx = ?",
+                "type": "formula",
+                "answer": "e^x + C",
+                "solution_steps": ["Recall standard integral"]
             },
             {
                 "id": "calc_q2_2",
@@ -152,14 +159,14 @@ FORMULA_QUIZ_BANK = {
         ],
         'Limits': [
             {
-                "id": "calc_q3",
+                "id": "calc_q4",
                 "question": "lim(x→0) (sin(x)/x) = ?",
                 "type": "formula",
                 "answer": "1",
                 "solution_steps": ["This is a fundamental limit in calculus."]
             },
             {
-                "id": "calc_q3_2",
+                "id": "calc_q5",
                 "question": "lim(x→∞) (1/x) = ?",
                 "type": "formula",
                 "answer": "0",
@@ -177,7 +184,7 @@ FORMULA_QUIZ_BANK = {
                 "solution_steps": ["Divide both sides of the equation by 'nR' to isolate 'T'."]
             },
             {
-                "id": "chem_q1_2",
+                "id": "chem_q2",
                 "question": "V₁/T₁ = V₂/T₂ → solve for V₂",
                 "type": "formula",
                 "answer": "V₂ = V₁T₂/T₁",
@@ -186,14 +193,14 @@ FORMULA_QUIZ_BANK = {
         ],
         'Stoichiometry': [
             {
-                "id": "chem_q2",
+                "id": "chem_q3",
                 "question": "Moles = Mass / Molar Mass → solve for Mass",
                 "type": "formula",
                 "answer": "Mass = Moles × Molar Mass",
                 "solution_steps": ["Multiply both sides by 'Molar Mass' to isolate 'Mass'."]
             },
             {
-                "id": "chem_q2_2",
+                "id": "chem_q4",
                 "question": "Concentration = Moles / Volume (in L) → solve for Moles",
                 "type": "formula",
                 "answer": "Moles = Concentration × Volume",
@@ -202,23 +209,68 @@ FORMULA_QUIZ_BANK = {
         ],
         'Acids and Bases': [
             {
-                "id": "chem_q3",
+                "id": "chem_q5",
                 "question": "pH = -log[H⁺] → solve for [H⁺]",
                 "type": "formula",
                 "answer": "[H⁺] = 10⁻ᵖᴴ",
                 "solution_steps": ["Take the inverse log (10 to the power of) of both sides."]
             },
             {
-                "id": "chem_q3_2",
+                "id": "chem_q6",
                 "question": "pH + pOH = ?",
                 "type": "formula",
                 "answer": "14",
                 "solution_steps": ["This is a fundamental relationship for aqueous solutions at 25°C."]
             }
         ]
-
+    },
+    'Physics': {
+        'Mechanics': [
+            {
+                "id": "phy_q1",
+                "question": "F=ma → solve for a",
+                "type": "formula",
+                "answer": "a=F/m",
+                "solution_steps": ["Divide both sides by m"]
+            },
+            {
+                "id": "phy_q2",
+                "question": "E=mc² → solve for m",
+                "type": "formula",
+                "answer": "m=E/c²",
+                "solution_steps": ["Divide both sides by c²"]
+            }
+        ],
+        'Electricity': [
+            {
+                "id": "phy_q3",
+                "question": "V=IR → solve for I",
+                "type": "formula",
+                "answer": "I=V/R",
+                "solution_steps": ["Divide both sides by R"]
+            }
+        ]
+    },
+    'Biology': {
+        'Biochemistry': [
+            {
+                "id": "bio_q1",
+                "question": "Photosynthesis equation: CO₂ + H₂O + Light Energy → ?",
+                "type": "formula",
+                "answer": "C₆H₁₂O₆ + O₂",
+                "solution_steps": ["Recall the products of photosynthesis (glucose and oxygen)."]
+            },
+            {
+                "id": "bio_q2",
+                "question": "Cellular Respiration equation: C₆H₁₂O₆ + O₂ → ?",
+                "type": "formula",
+                "answer": "CO₂ + H₂O + ATP",
+                "solution_steps": ["Recall the products of cellular respiration (carbon dioxide, water, and energy)."]
+            }
+        ]
     }
 }
+
 
 
 if "quiz_progress" not in st.session_state:
@@ -269,38 +321,56 @@ QUESTION_BANK = {
          "type": "formula",
          "answer": "cos(x)",
          "solution_steps": ["Recall the standard derivative of sin(x)."]},
-        {"id": "calc_q3",
-         "text": "d/dx(sin(x))=?",
+        {"id": "calc_q1_3",
+         "text": "d/dx(e^x)=?",
          "difficulty": 1,
          "type": "formula",
-         "answer": "cos(x)",
-         "solution_steps": ["Recall standard derivative"]},
-        {"id": "calc_q4",
+         "answer": "e^x",
+         "solution_steps": ["Recall the standard derivative of e^x."]},
+        {"id": "calc_q2",
+         "text": "∫x² dx = ?",
+         "difficulty": 1,
+         "type": "formula",
+         "answer": "x³/3 + C",
+         "solution_steps": ["Apply the power rule for integration: ∫xⁿ dx = xⁿ⁺¹/(n+1) + C, where n=2."]},
+        {"id": "calc_q3",
          "text": "∫e^x dx = ?",
          "difficulty": 1,
          "type": "formula",
          "answer": "e^x + C",
          "solution_steps": ["Recall standard integral"]},
-        {"id": "calc_q5",
+        {"id": "calc_q2_2",
+         "text": "∫cos(x) dx = ?",
+         "difficulty": 1,
+         "type": "formula",
+         "answer": "sin(x) + C",
+         "solution_steps": ["Recall the standard integral of cos(x)."]},
+        {"id": "calc_q4",
          "text": "lim(x→0) (sin(x)/x) = ?",
          "difficulty": 3,
          "type": "formula",
          "answer": "1",
-         "solution_steps": ["Apply L'Hopital's Rule or recall fundamental limit"]}
+         "solution_steps": ["This is a fundamental limit in calculus."]},
+        {"id": "calc_q5",
+         "text": "lim(x→∞) (1/x) = ?",
+         "difficulty": 2,
+         "type": "formula",
+         "answer": "0",
+         "solution_steps": ["As x approaches infinity, 1/x approaches 0."]}
     ],
     'Chemistry': [
-{"id": "chem_q1",
+        {"id": "chem_q1",
          "text": "PV=nRT → solve for T",
          "difficulty": 1,
          "type": "formula",
          "answer": "T=PV/(nR)",
          "solution_steps": ["Divide both sides by nR"]},
         {"id": "chem_q2",
-         "text": "pH = -log[H⁺] → solve for [H⁺]",
-         "difficulty": 2,
+         "text": "V₁/T₁ = V₂/T₂ → solve for V₂",
+         "difficulty": 1,
          "type": "formula",
-         "answer": "[H⁺] = 10⁻ᵖᴴ",
-         "solution_steps": ["Take inverse log (10 to the power of) of both sides"]},
+         "answer": "V₂ = V₁T₂/T₁",
+         "solution_steps": ["Multiply both sides by T₂ to isolate V₂."]},
         {"id": "chem_q3",
          "text": "Moles = Mass / Molar Mass → solve for Mass",
          "difficulty": 1,
@@ -308,17 +378,23 @@ QUESTION_BANK = {
          "answer": "Mass = Moles × Molar Mass",
          "solution_steps": ["Multiply both sides by Molar Mass"]},
         {"id": "chem_q4",
-         "text": "Density = Mass / Volume → solve for Volume",
+         "text": "Concentration = Moles / Volume (in L) → solve for Moles",
          "difficulty": 1,
          "type": "formula",
-         "answer": "Volume = Mass / Density",
-         "solution_steps": ["Rearrange the formula to isolate Volume"]},
+         "answer": "Moles = Concentration × Volume",
+         "solution_steps": ["Multiply both sides by 'Volume' to isolate 'Moles'."]},
         {"id": "chem_q5",
-         "text": "Fahrenheit to Celsius: (F - 32) × 5/9 = ?",
+         "text": "pH = -log[H⁺] → solve for [H⁺]",
+         "difficulty": 2,
+         "type": "formula",
+         "answer": "[H⁺] = 10⁻ᵖᴴ",
+         "solution_steps": ["Take inverse log (10 to the power of) of both sides"]},
+        {"id": "chem_q6",
+         "text": "pH + pOH = ?",
          "difficulty": 1,
          "type": "formula",
-         "answer": "C",
-         "solution_steps": ["This is the direct conversion formula."]}
+         "answer": "14",
+         "solution_steps": ["This is a fundamental relationship for aqueous solutions at 25°C."]}
     ],
     'Physics': [
         {"id": "phy_q1",
@@ -383,8 +459,6 @@ QUESTION_BANK = {
          "type": "concept",
          "answer": "Organ System",
          "solution_steps": ["Recall the levels of biological organization."]}
-
-
     ]
 }
 
