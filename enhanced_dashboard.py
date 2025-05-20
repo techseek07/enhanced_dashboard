@@ -1,10 +1,5 @@
 
 # enhanced_dashboard_complete.py
-try:
-    from causallearn.search.ConstraintBased.PC import pc
-except ImportError:
-    # Fallback if not installed
-    pass
 import streamlit as st
 import pandas as pd
 import numpy as np
