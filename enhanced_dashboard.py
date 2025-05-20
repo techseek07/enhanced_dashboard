@@ -217,47 +217,6 @@ FORMULA_QUIZ_BANK = {
             }
         ]
     },
-    'Physics': {
-        'Mechanics': [
-            {
-                "id": "phy_q1",
-                "question": "F=ma → solve for a",
-                "type": "formula",
-                "answer": "a=F/m",
-                "solution_steps": ["Divide both sides by m"]
-            },
-            {
-                "id": "phy_q2",
-                "question": "E=mc² → solve for m",
-                "type": "formula",
-                "answer": "m=E/c²",
-                "solution_steps": ["Divide both sides by c²"]
-            },
-            {
-                "id": "phy_q4",
-                "question": "Work = Force × Distance → solve for Force",
-                "type": "formula",
-                "answer": "Force = Work / Distance",
-                "solution_steps": ["Divide both sides by Distance"]
-            },
-            {
-                "id": "phy_q5",
-                "question": "Kinetic Energy = ½mv² → solve for v",
-                "type": "formula",
-                "answer": "v = √(2KE/m)",
-                "solution_steps": ["Multiply by 2/m: 2KE/m = v²", "Take square root of both sides"]
-            }
-        ],
-        'Electricity': [
-            {
-                "id": "phy_q3",
-                "question": "V=IR → solve for I",
-                "type": "formula",
-                "answer": "I=V/R",
-                "solution_steps": ["Divide both sides by R"]
-            }
-        ]
-    },
     'Biology': {
         'Biochemistry': [
             {
@@ -423,38 +382,6 @@ QUESTION_BANK = {
          "answer": "C",
          "solution_steps": ["This is the direct conversion formula."]}
     ],
-    'Physics': [
-        {"id": "phy_q1",
-         "text": "F=ma → solve for a",
-         "difficulty": 1,
-         "type": "formula",
-         "answer": "a=F/m",
-         "solution_steps": ["Divide both sides by m"]},
-        {"id": "phy_q2",
-         "text": "E=mc² → solve for m",
-         "difficulty": 2,
-         "type": "formula",
-         "answer": "m=E/c²",
-         "solution_steps": ["Divide both sides by c²"]},
-        {"id": "phy_q3",
-         "text": "V=IR → solve for I",
-         "difficulty": 1,
-         "type": "formula",
-         "answer": "I=V/R",
-         "solution_steps": ["Divide both sides by R"]},
-        {"id": "phy_q4",
-         "text": "Work = Force × Distance → solve for Force",
-         "difficulty": 1,
-         "type": "formula",
-         "answer": "Force = Work / Distance",
-         "solution_steps": ["Divide both sides by Distance"]},
-        {"id": "phy_q5",
-         "text": "Kinetic Energy = ½mv² → solve for v",
-         "difficulty": 3,
-         "type": "formula",
-         "answer": "v = √(2KE/m)",
-         "solution_steps": ["Multiply by 2/m: 2KE/m = v²", "Take square root of both sides"]}
-    ],
     'Biology': [
         {"id": "bio_q1",
          "text": "Photosynthesis equation: CO₂ + H₂O + Light Energy → ?",
@@ -599,6 +526,8 @@ MOTIVATION_QUOTES = {
 @st.cache_data
 def generate_student_data(num_students=75):
     np.random.seed(42)
+    # Add topic difficulty factors
+
     rows = []
     study_profiles = ['video_heavy', 'practice_heavy', 'quiz_heavy', 'balanced']
     profile_dist = [0.3, 0.25, 0.2, 0.25]
@@ -672,12 +601,26 @@ def generate_student_data(num_students=75):
                     # Subtopic handling
                     subtopics = SUBTOPICS.get(topic, [])
                     subs = get_subtopics(subtopics)
-
-                    # Success probability with model relationship between behaviors and outcomes
+                    topic_factor = {
+                        'Algebra': 0.8,  # Easier
+                        'Geometry': 0.75,
+                        'Calculus': 0.6,  # Harder
+                        'Chemistry': 0.65,
+                        'Biology': 0.7,
+                        'Derivatives': 0.55,
+                        'Gas Laws': 0.6,
+                        'Kinematics': 0.55
+                    }.get(topic, 0.65)  # Default difficulty
+                    # Success probability with topic difficulty and behaviors
                     success_prob = np.clip(
-                        base_skill * mf * (1 + 0.1 * vids + 0.15 * prac + 0.07 * qz),
-                        0.1, 0.95
+                        base_skill * mf * topic_factor * (1 + 0.1 * vids + 0.15 * prac + 0.07 * qz),
+                        0.1, 0.85  # Lower max probability to create more realistic spread
                     )
+
+                    # Add forced failures for realistic distribution
+                    if np.random.random() < 0.35:  # 35% chance of reduced success
+                        success_prob *= 0.6
+
 
                     # Quiz progress validation
                     quiz_bank = FORMULA_QUIZ_BANK.get(topic, {})
@@ -2358,9 +2301,9 @@ def main():
             # Quiz Section
             st.markdown('<p class="medium-font">Interactive Quiz Section</p>', unsafe_allow_html=True)
             try:
-                comp = df[(df.StudentID == sid) & (df.Completed)].Topic.unique().tolist()
-                quiz_topics = [t for t in comp if t in FORMULA_QUIZ_BANK]
-
+                all_available_quiz_topics = list(FORMULA_QUIZ_BANK.keys())
+                completed_topics = df[(df.StudentID == sid) & (df.Completed)].Topic.unique().tolist()
+                quiz_topics = [t for t in all_available_quiz_topics if t in completed_topics]
                 if quiz_topics:
                     c1, c2 = st.columns([1, 2])
                     with c1:
