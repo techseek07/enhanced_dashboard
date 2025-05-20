@@ -1612,12 +1612,15 @@ def get_quiz_recommendations(sid, completed):
     rec = []
 
     # Access quiz progress WITHOUT using setdefault (which resets values)
-    # Instead, use a safer approach that doesn't modify session state
     quiz_progress = st.session_state.get('quiz_progress', {})
     student_progress = quiz_progress.get(sid, {})
 
-    # Only recommend topics the student has completed
-    for t in completed:
+    # Find all topics with quiz progress, regardless of completion
+    progress_topics = set(completed)  # Start with completed topics
+    progress_topics.update(student_progress.keys())  # Add topics with progress
+
+    # Process all relevant topics
+    for t in progress_topics:
         if t in FORMULA_QUIZ_BANK:
             # Get current progress from existing data without modifying it
             p = student_progress.get(t, 0)
@@ -2125,23 +2128,6 @@ def main():
         st.sidebar.markdown("---")
         with st.sidebar.expander("🛠️ Debug Information", expanded=False):
             st.write("**Session State Keys:**", list(st.session_state.keys()))
-
-            # Quiz Progress Debug
-            st.write("**Quiz Progress:**")
-            if sid in st.session_state.get('quiz_progress', {}):
-                progress_data = []
-                for topic, progress in st.session_state.quiz_progress[sid].items():
-                    progress_data.append({"Topic": topic, "Progress": progress})
-
-                if progress_data:
-                    st.dataframe(pd.DataFrame(progress_data))
-                else:
-                    st.info("No quiz progress for this student")
-            else:
-                st.info(f"Student {sid} not in quiz_progress")
-            st.write(df.groupby(['StudentID', 'Topic'])['QuizProgress'].max().reset_index())
-
-
         # ── Peer Tutoring Section ──
         with st.expander("🔗 Peer Tutoring Matches", expanded=False):
             st.write("Students who complement your strengths/weaknesses:")
