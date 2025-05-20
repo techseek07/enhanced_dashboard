@@ -1812,7 +1812,7 @@ def get_recommendations(sid, df, G, seg, mot='High'):
             seq = pq.get('recent', []) + pq.get('historical', []) + pq.get('fundamental', [])
 
             # Build recommendation with context explanation
-            importance = "❗❗" if priority > 3.5 else "❗" if priority > 2.5 else ""
+            importance = "❗❗" if priority > 3.0 else "❗" if priority > 2.5 else ""
             rec.append(f"📚 Practice {t}{importance}: {', '.join(seq[:3])} - {context}")
 
     # 5) Quiz recommendations
