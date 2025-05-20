@@ -1067,7 +1067,7 @@ def build_knowledge_graph(prereqs, df, topics, OR_thresh=1.5, SHAP_thresh=0.01,
 
 def apply_dual_tier_scoring(G):
     """
-    Applies tiered scoring to edges based on relationship type and node connectivity.
+    Applies tiered scoring to edges based on relationship type, edge weight, and node connectivity.
     """
     # Base scores for different relationship types
     base_scores = {
@@ -1083,14 +1083,21 @@ def apply_dual_tier_scoring(G):
     for source, target, data in G.edges(data=True):
         # Get score from relationship type
         relation = data.get('relation', 'other')
-        score = base_scores.get(relation, 1)
 
-        # Bonus for important nodes (number of incoming edges)
+        # IMPROVEMENT 1: Factor in edge weight
+        weight_factor = min(data.get('weight', 1.0) / 2, 2.0)
+        score = base_scores.get(relation, 1) * weight_factor
+
+        # Bonus for important target nodes (number of incoming edges)
         incoming_edges = len([e for e in G.in_edges(target) if e[0] != source])
         bonus = min(2, incoming_edges)
 
-        # Tier assignment
-        total = score + bonus
+        # IMPROVEMENT 2: Consider source node importance
+        outgoing_edges = len([e for e in G.out_edges(source)])
+        source_bonus = min(1.0, outgoing_edges / 3)
+
+        # Tier assignment with new factors
+        total = score + bonus + source_bonus
         if total >= 4:
             data['tier'] = 1
         elif total >= 2:
@@ -2020,27 +2027,6 @@ def main():
             if df.empty:
                 st.error("No student data generated")
                 st.stop()
-        # Initialize session state quiz progress from synthetic data
-        if 'quiz_progress' not in st.session_state:
-            st.session_state.quiz_progress = {}
-
-            # Use groupby to get the maximum progress per student and topic
-            max_progress = df.groupby(['StudentID', 'Topic'])['QuizProgress'].max().reset_index()
-
-            # For each student-topic pair, copy synthetic progress to session state
-            for _, row in max_progress.iterrows():
-                sid = int(row['StudentID'])
-                topic = row['Topic']
-                qp = int(row['QuizProgress'])
-
-                if sid not in st.session_state.quiz_progress:
-                    st.session_state.quiz_progress[sid] = {}
-
-                # Only update if there's actual progress
-                if qp > 0:
-                    st.session_state.quiz_progress[sid][topic] = qp
-            st.write(f"Debug - Quiz Progress: {st.session_state.quiz_progress}")
-
         # Modified graph building section
         if not nx.nodes(st.session_state.knowledge_graph):
             with st.spinner("Building knowledge graph..."):
