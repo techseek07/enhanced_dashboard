@@ -33,7 +33,7 @@ scikit-learn
 xgboost
 shap
 data generation done using:-
-The function generates data for 75(optimized here)  students by default with four distinct learning profiles distributed according to specific probabilities:
+The function generates data for 110(optimized here)  students by default with four distinct learning profiles distributed according to specific probabilities:
 30% video-heavy learners
 25% practice-heavy learners
 20% quiz-heavy learners
