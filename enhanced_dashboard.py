@@ -1774,7 +1774,7 @@ def get_recommendations(sid, df, G, seg, mot='High'):
                         priority += 1.0
                     elif relation == 'application':
                         context = "Practical application area"
-                        priority += 0.8
+                        priority += 1.0
                     elif relation == 'subtopic':
                         context = "Important subtopic to master"
                         priority += 0.5
@@ -1783,7 +1783,7 @@ def get_recommendations(sid, df, G, seg, mot='High'):
                         priority += 0.8
                     elif relation == 'shap_importance':
                         context = "High-impact concept"
-                        priority += 1.0
+                        priority += 0.7
                     else:
                         context = "Connected concept"
 
@@ -1797,7 +1797,7 @@ def get_recommendations(sid, df, G, seg, mot='High'):
             seq = pq.get('recent', []) + pq.get('historical', []) + pq.get('fundamental', [])
 
             # Build recommendation with context explanation
-            importance = "❗❗" if priority > 3.5 else "❗" if priority > 3.0 else ""
+            importance = "❗❗" if priority > 3.5 else "❗" if priority > 2.5 else ""
             rec.append(f"📚 Practice {t}{importance}: {', '.join(seq[:3])} - {context}")
 
     # 5) Quiz recommendations
@@ -2010,6 +2010,25 @@ def main():
             if df.empty:
                 st.error("No student data generated")
                 st.stop()
+        # Initialize session state quiz progress from synthetic data
+        if 'quiz_progress' not in st.session_state:
+            st.session_state.quiz_progress = {}
+
+            # Use groupby to get the maximum progress per student and topic
+            max_progress = df.groupby(['StudentID', 'Topic'])['QuizProgress'].max().reset_index()
+
+            # For each student-topic pair, copy synthetic progress to session state
+            for _, row in max_progress.iterrows():
+                sid = int(row['StudentID'])
+                topic = row['Topic']
+                qp = int(row['QuizProgress'])
+
+                if sid not in st.session_state.quiz_progress:
+                    st.session_state.quiz_progress[sid] = {}
+
+                # Only update if there's actual progress
+                if qp > 0:
+                    st.session_state.quiz_progress[sid][topic] = qp
 
         # Modified graph building section
         if not nx.nodes(st.session_state.knowledge_graph):
