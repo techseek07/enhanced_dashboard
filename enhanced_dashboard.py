@@ -983,11 +983,20 @@ def build_knowledge_graph(prereqs, df, topics, OR_thresh=2.0, SHAP_thresh=0.01,
 
                     # SHAP analysis
                     a_importance = 0
-                    if len(y) >= 100:
+                    if len(y) >= 100:  # Need at least 100 students
                         try:
-                            xgb = XGBClassifier(use_label_encoder=False, eval_metric='logloss',
-                                                random_state=42)
-                            xgb.fit(X, y)
+                            # Add this block - explicit label encoding
+                            from sklearn.preprocessing import LabelEncoder
+                            le = LabelEncoder()
+                            y_encoded = le.fit_transform(y)
+
+                            # Change this line - remove deprecated parameter
+                            xgb = XGBClassifier(eval_metric='logloss', random_state=42)
+
+                            # Change this line - use encoded labels
+                            xgb.fit(X, y_encoded)
+
+                            # Keep these lines the same
                             explainer = shap.TreeExplainer(xgb)
                             shap_values = explainer.shap_values(X)
                             a_importance = np.abs(shap_values[:, 0]).mean()
@@ -2123,8 +2132,6 @@ def main():
                         'shap_importance': '#0000FF', 'application': '#800080',
                         'subtopic': '#FFA500', 'sub_prereq': '#FF69B4',
                         'app_preparation': '#008080',
-                        'pc_causal': '#006400',  # Dark green for causal edges
-                        'pc_association': '#4B0082'  # Indigo for association edges
                     }
                     traces = []
                     for rel, col in edge_colors.items():
