@@ -1774,7 +1774,7 @@ def get_recommendations(sid, df, G, seg, mot='High'):
                         priority += 1.0
                     elif relation == 'application':
                         context = "Practical application area"
-                        priority += 1.0
+                        priority += 0.8
                     elif relation == 'subtopic':
                         context = "Important subtopic to master"
                         priority += 0.5
@@ -1783,7 +1783,7 @@ def get_recommendations(sid, df, G, seg, mot='High'):
                         priority += 0.8
                     elif relation == 'shap_importance':
                         context = "High-impact concept"
-                        priority += 0.7
+                        priority += 1.0
                     else:
                         context = "Connected concept"
 
@@ -1797,7 +1797,7 @@ def get_recommendations(sid, df, G, seg, mot='High'):
             seq = pq.get('recent', []) + pq.get('historical', []) + pq.get('fundamental', [])
 
             # Build recommendation with context explanation
-            importance = "❗❗" if priority > 3.5 else "❗" if priority > 2.5 else ""
+            importance = "❗❗" if priority > 3.5 else "❗" if priority > 3.0 else ""
             rec.append(f"📚 Practice {t}{importance}: {', '.join(seq[:3])} - {context}")
 
     # 5) Quiz recommendations
