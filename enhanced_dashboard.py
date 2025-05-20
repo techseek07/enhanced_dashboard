@@ -1,10 +1,5 @@
 
 # enhanced_dashboard_complete.py
-try:
-    from causallearn.search.ConstraintBased.PC import pc
-except ImportError:
-    # Fallback if not installed
-    pass
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -29,7 +24,7 @@ PREREQUISITES = {
     'Chemistry':     ['reactions'],
     'Gas Laws':      ['Chemistry'],
     'Biology':       ['Chemistry'],
-    'Kinematics':    ['Algebra'],
+    'Kinematics':    ['Equations of Motion'],
 }
 TOPICS = [
     'Algebra',
@@ -41,7 +36,9 @@ TOPICS = [
     'Biology',
     'Kinematics',
     'reactions',
-'Applications of Integrals',]
+'Applications of Integrals',
+    'Equations of Motion'
+]
 
 SUBTOPICS = {
     'Algebra':    ['Equations','Inequalities','Polynomials'],
@@ -54,6 +51,7 @@ SUBTOPICS = {
     'Kinematics': ['Velocity','Acceleration','Projectile Motion'],
     'reactions': ['synthesis', 'decomposition', 'combustion', 'acid-base'],
 'Applications of Integrals':['Volumes of solids of revolution','Average value of a function','Improper integrals'],
+    'Equations of Motion':['newtons law','gravity'],
 }
 
 # Application-level edges
@@ -1071,7 +1069,7 @@ def apply_dual_tier_scoring(G):
     """
     # Base scores for different relationship types
     base_scores = {
-        'prereq': 3,
+        'prereq': 2,
         'application': 1,
         'odds_ratio': 2,
         'shap_importance': 2.5,
