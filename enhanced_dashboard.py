@@ -24,7 +24,7 @@ import random
 
 PREREQUISITES = {
     'Geometry':      ['Algebra'],
-    'Calculus':      ['Algebra','Geometry'],
+    'Calculus':      ['Applications of Integrals:','Geometry'],
     'Derivatives':   ['Calculus'],           # derivative builds on calculus
     'Chemistry':     ['reactions'],
     'Gas Laws':      ['Chemistry'],
@@ -41,7 +41,7 @@ TOPICS = [
     'Biology',
     'Kinematics',
     'reactions',
-]
+'Applications of Integrals',]
 
 SUBTOPICS = {
     'Algebra':    ['Equations','Inequalities','Polynomials'],
@@ -53,6 +53,7 @@ SUBTOPICS = {
     'Biology':    ['Cells','Genetics','Ecology'],
     'Kinematics': ['Velocity','Acceleration','Projectile Motion'],
     'reactions': ['synthesis', 'decomposition', 'combustion', 'acid-base'],
+'Applications of Integrals':['Volumes of solids of revolution','Average value of a function','Improper integrals'],
 }
 
 # Application-level edges
@@ -2029,6 +2030,7 @@ def main():
                 # Only update if there's actual progress
                 if qp > 0:
                     st.session_state.quiz_progress[sid][topic] = qp
+            st.write(f"Debug - Quiz Progress: {st.session_state.quiz_progress}")
 
         # Modified graph building section
         if not nx.nodes(st.session_state.knowledge_graph):
