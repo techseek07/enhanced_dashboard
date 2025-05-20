@@ -2134,6 +2134,8 @@ def main():
                     st.info("No quiz progress for this student")
             else:
                 st.info(f"Student {sid} not in quiz_progress")
+            st.write(df.groupby(['StudentID', 'Topic'])['QuizProgress'].max().reset_index())
+
 
         # ── Peer Tutoring Section ──
         with st.expander("🔗 Peer Tutoring Matches", expanded=False):
