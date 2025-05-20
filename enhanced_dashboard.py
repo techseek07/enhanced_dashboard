@@ -1611,27 +1611,31 @@ def get_quiz_recommendations(sid, completed):
     """
     rec = []
 
-    # Ensure quiz_progress is initialized
-    if 'quiz_progress' not in st.session_state:
-        st.session_state.quiz_progress = {}
-    if sid not in st.session_state.quiz_progress:
-        st.session_state.quiz_progress[sid] = {}
+    # Access quiz progress WITHOUT using setdefault (which resets values)
+    # Instead, use a safer approach that doesn't modify session state
+    quiz_progress = st.session_state.get('quiz_progress', {})
+    student_progress = quiz_progress.get(sid, {})
 
     # Only recommend topics the student has completed
     for t in completed:
         if t in FORMULA_QUIZ_BANK:
-            # Get current progress or default to 0
-            p = st.session_state.quiz_progress.setdefault(sid, {}).get(t, 0)
-            subs = list(FORMULA_QUIZ_BANK[t].keys())
+            # Get current progress from existing data without modifying it
+            p = student_progress.get(t, 0)
+            subtopics = list(FORMULA_QUIZ_BANK[t].keys())
+            total_sections = len(subtopics)
 
             # Check if there are more subtopics available
-            if p < len(subs):
+            if p < total_sections:
+                # Get the next subtopic name
+                next_subtopic = subtopics[p] if p < len(subtopics) else "Review"
+
                 # Add context for the recommendation
                 if p == 0:
                     context = "Get started with your first quiz"
                 else:
-                    context = f"Continue progress ({p}/{len(subs)} completed)"
-                rec.append(f"📝 Quiz Alert: {subs[p]} ({t}) - {context}")
+                    context = f"Continue with section {p + 1}/{total_sections}"
+
+                rec.append(f"📝 Quiz Alert: {next_subtopic} ({t}) - {context}")
             else:
                 # All subtopics completed
                 # Get mastery from graph
@@ -1644,6 +1648,7 @@ def get_quiz_recommendations(sid, completed):
                             rec.append(f"📝 Review Alert: {t} (Mastery: {int(mastery)}%)")
 
     return rec
+
 
 # ==================================================================
 # 6. Comprehensive Recommendations
