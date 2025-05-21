@@ -683,8 +683,8 @@ def segment_students(df):
         return pd.DataFrame(columns=['StudentID', 'acc', 'time', 'cluster', 'label'])
 
     # Robust clustering initialization
-    n_clusters = min(3, max(1, len(perf)))
-    kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init='auto')
+    n_clusters = min(3, max(1, len(perf))) # how many clusters
+    kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init='auto')#intitalize kmeand clustering for given cluster
 
     # Handle edge cases
     if len(perf) == 1:
@@ -697,7 +697,7 @@ def segment_students(df):
         })
 
     try:
-        perf['cluster'] = kmeans.fit_predict(perf[['acc', 'time']])
+        perf['cluster'] = kmeans.fit_predict(perf[['acc', 'time']])#do k mean clustering
     except Exception as e:
         perf['cluster'] = 0
 
